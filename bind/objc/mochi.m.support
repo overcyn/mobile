@@ -15,19 +15,6 @@
 }
 @end
 
-@interface ObjcValue : NSObject
-@property (nonatomic, strong) NSNumber *number;
-@end
-@implementation ObjcValue
-
-- (id)initWithNumber:(NSNumber *)number {
-    if ((self = [super init])) {
-        _number = number;
-    }
-    return self;
-}
-@end
-
 @interface MochiTracker : NSObject {
     NSMapTable *_mapTable;
     int64_t _maxKey;
@@ -55,6 +42,9 @@
 }
 
 - (ObjcRef)track:(id)object {
+    if (object == nil) {
+        return 0;
+    }
     @synchronized (self) {
         _maxKey += 1;
         [_mapTable setObject:object forKey:@(_maxKey)];
@@ -63,6 +53,9 @@
 }
 
 - (void)untrack:(ObjcRef)key {
+    if (key == 0) {
+        return;
+    }
     @synchronized (self) {
         id keyObj = @(key);
         id object = [_mapTable objectForKey:keyObj];
@@ -74,6 +67,9 @@
 }
 
 - (id)get:(ObjcRef)key {
+    if (key == 0) {
+        return nil;
+    }
     @synchronized (self) {
         id object = [_mapTable objectForKey:(id)@(key)];
         if (object == nil) {
@@ -85,61 +81,79 @@
 
 @end
 
-ObjcRef MochiRootObjc() {
+ObjcRef MochiObjcRoot() {
     id root = [[MochiBridge sharedBridge] rootObject];
     return MochiTrackObjc(root);
 }
 
 ObjcRef MochiObjcBool(bool v) {
-    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
-    return MochiTrackObjc(val);
+    return MochiTrackObjc(@(v));
 }
 
 bool MochiObjcToBool(ObjcRef v) {
-    ObjcValue *val = MochiGetObjc(v);
-    return val.number.boolValue;
+    NSNumber *val = MochiGetObjc(v);
+    return val.boolValue;
 }
 
 ObjcRef MochiObjcInt64(int64_t v) {
-    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
-    return MochiTrackObjc(val);
+    return MochiTrackObjc(@(v));
 }
 
 int64_t MochiObjcToInt64(ObjcRef v) {
-    ObjcValue *val = MochiGetObjc(v);
-    return val.number.longValue;
+    NSNumber *val = MochiGetObjc(v);
+    return val.longLongValue;
 }
 
 ObjcRef MochiObjcFloat64(double v) {
-    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
-    return MochiTrackObjc(val);
+    return MochiTrackObjc(@(v));
 }
 
 double MochiObjcToFloat64(ObjcRef v) {
-    ObjcValue *val = MochiGetObjc(v);
-    return val.number.doubleValue;
+    NSNumber *val = MochiGetObjc(v);
+    return val.doubleValue;
 }
 
-ObjcRef MochiObjcString(CGoString cstr) {
-    if (cstr.len == 0) {
-        return MochiTrackObjc(@"");
-    }
-    NSString *str = [[NSString alloc] initWithBytesNoCopy:cstr.ptr length:cstr.len encoding:NSUTF8StringEncoding freeWhenDone:YES];
-    return MochiTrackObjc(str);
+ObjcRef MochiObjcString(CGoBuffer cstr) {
+    return MochiTrackObjc(MochiNSString(cstr));
 }
 
-CGoString MochiObjcToString(ObjcRef v) {
+CGoBuffer MochiObjcToString(ObjcRef v) {
     NSString *str = MochiGetObjc(v);
     int len = [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
     if (len == 0) {
-        return (CGoString){0};
+        return (CGoBuffer){0};
     }
 
     char *buf = (char *)malloc(len);
     assert(buf != NULL);
     [str getBytes:buf maxLength:len usedLength:NULL encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, str.length) remainingRange:NULL];
   
-    CGoString cstr;
+    CGoBuffer cstr;
+    cstr.ptr = buf;
+    cstr.len = len;
+    return cstr;
+}
+
+ObjcRef MochiObjcBytes(CGoBuffer bytes) {
+    if (bytes.len == 0) {
+        return MochiTrackObjc([NSData data]);
+    }
+    NSData *data = [[NSData alloc] initWithBytesNoCopy:bytes.ptr length:bytes.len freeWhenDone:YES];
+    return MochiTrackObjc(data);
+}
+
+CGoBuffer MochiObjcToBytes(ObjcRef v) {
+    NSData *data = MochiGetObjc(v);
+    int len = [data length];
+    if (len == 0) {
+        return (CGoBuffer){0};
+    }
+
+    char *buf = (char *)malloc(len);
+    assert(buf != NULL);
+    [data getBytes:buf length:len];
+  
+    CGoBuffer cstr;
     cstr.ptr = buf;
     cstr.len = len;
     return cstr;
@@ -168,31 +182,112 @@ ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index) {
     return MochiTrackObjc(val[index]);
 }
 
-// 
+// Call
 
-ObjcRef MochiCallObjc(ObjcRef v, CGoString str, ObjcRef args) {
-    return 0;
+ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
+    id obj = MochiGetObjc(v);
+    NSArray *args = MochiGetObjc(arguments);
+    SEL sel = NSSelectorFromString(MochiNSString(cstr));
+    NSMethodSignature *sig = [[obj class] instanceMethodSignatureForSelector:sel];
+    
+    // Build invocation.
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    inv.selector = sel;
+    inv.target = obj;
+    for (int i=0; i < args.count; i++) {
+        id argObj = args[i];
+        NSNumber *num = (NSNumber *)argObj;
+        const char *type = sig.methodReturnType;
+        
+        if (strcmp(type, "c")) {
+            char arg = num.charValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "i")) {
+            int arg = num.intValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "s")) {
+            short arg = num.shortValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "l")) {
+            long arg = num.longValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "q")) {
+            long long arg = num.longLongValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "C")) {
+            unsigned char arg = num.unsignedCharValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "I")) {
+            unsigned int arg = num.unsignedIntValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "S")) {
+            unsigned short arg = num.unsignedShortValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "L")) {
+            unsigned long arg = num.unsignedLongValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "Q")) {
+            unsigned long long arg = num.unsignedLongLongValue;
+            [inv setArgument:&arg atIndex:i+2];
+        }  else if (strcmp(type, "f")) {
+            float arg = num.floatValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "d")) {
+            double arg = num.doubleValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "B")) {
+            bool arg = num.boolValue;
+            [inv setArgument:&arg atIndex:i+2];
+        } else if (strcmp(type, "@")) {
+            [inv setArgument:&argObj atIndex:i+2];
+        } else {
+            @throw @"MochiObjcCall: Unsupported argument type";
+        }
+    }
+    
+    // Invoke.
+    [inv invoke];
+    
+    // Get return value.
+    const char *type = [sig methodReturnType];
+    id ret = nil;
+    if (strcmp(type, "c") || strcmp(type, "i") || strcmp(type, "s") || strcmp(type, "l") || strcmp(type, "q")
+        || strcmp(type, "C") || strcmp(type, "I") || strcmp(type, "S") || strcmp(type, "L") || strcmp(type, "Q")
+        || strcmp(type, "f") || strcmp(type, "d") || strcmp(type, "B")) {
+        
+        void *buf = malloc(sig.methodReturnLength);
+        [inv getReturnValue:&buf];
+        ret = [[NSNumber alloc] initWithBytes:buf objCType:type];
+        free(buf);
+    } else if (strcmp(type, "v")) {
+        ret = nil;
+    } else if (strcmp(type, "@")) {
+        [inv getReturnValue:&ret];
+    } else {
+        @throw @"MochiObjcCall: Unsupported return type";
+    }
+    return MochiTrackObjc(ret);
 }
 
 // Tracker
 
 ObjcRef MochiTrackObjc(id value) {
-    if (value == nil) {
-        return 0;
-    }
     return [[MochiTracker sharedTracker] track:value];
 }
 
 id MochiGetObjc(ObjcRef key) {
-    if (key == 0) {
-        return nil;
-    }
     return [[MochiTracker sharedTracker] get:key];
 }
 
 void MochiUntrackObjc(ObjcRef key) {
-    if (key == 0) {
-        return;
-    }
     [[MochiTracker sharedTracker] untrack:key];
+}
+
+// Utilities
+
+NSString *MochiNSString(CGoBuffer cstr) {
+    if (cstr.len == 0) {
+        return @"";
+    }
+    return [[NSString alloc] initWithBytesNoCopy:cstr.ptr length:cstr.len encoding:NSUTF8StringEncoding freeWhenDone:YES];
 }

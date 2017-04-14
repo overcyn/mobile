@@ -1,24 +1,20 @@
 #import <Foundation/Foundation.h>
 
-// Mochi 123
 int MochiTest();
 
 typedef int64_t ObjcRef;
 typedef int64_t GoRef;
-typedef struct CGoString {
+typedef struct CGoBuffer {
     void *ptr; // UTF8 encoded string
     int64_t len; // length in bytes
-} CGoString;
+} CGoBuffer;
 
 @interface MochiBridge : NSObject
-+ (id)sharedBridge;
++ (MochiBridge *)sharedBridge;
 @property (nonatomic, strong) id rootObject;
 @end
 
-ObjcRef MochiRootObjc();
-
-// ObjC Bridge
-// MochiObjcKind
+ObjcRef MochiObjcRoot();
 
 // ObjcRef MochiObjcWithGo(GoRef v);
 // GoRef MochiObjcToGo(ObjcRef v);
@@ -29,11 +25,12 @@ ObjcRef MochiObjcInt64(int64_t v);
 int64_t MochiObjcToInt64(ObjcRef v);
 ObjcRef MochiObjcFloat64(double v);
 double MochiObjcToFloat64(ObjcRef v);
-ObjcRef MochiObjcString(CGoString str); // Frees the buffer
-CGoString MochiObjcToString(ObjcRef v);
-// ObjcRef MochiObjcToBytes(char *bytes);
-// char *MochiObjcFromBytes(ObjcRef v);
+ObjcRef MochiObjcString(CGoBuffer str); // Frees the buffer
+CGoBuffer MochiObjcToString(ObjcRef v);
+ObjcRef MochiObjcBytes(CGoBuffer bytes); // Frees the buffer
+CGoBuffer MochiObjcToBytes(ObjcRef v);
 
+// Array
 ObjcRef MochiObjcArray();
 int64_t MochiObjcArrayLen(ObjcRef v);
 void MochiObjcArrayAppend(ObjcRef v, ObjcRef a);
@@ -44,8 +41,13 @@ ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index);
 // ObjcRef MochiObjcDictGet(ObjcRef v, ObjcRef key);
 // ObjcRef MochiObjcDictSet(ObjcRef v, ObjcRef key, ObjCRef value);
 
-ObjcRef MochiCallObjc(ObjcRef v, CGoString str, ObjcRef args);
+// Call
+ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer str, ObjcRef args);
 
+// Tracker
 ObjcRef MochiTrackObjc(id value);
 id MochiGetObjc(ObjcRef key);
 void MochiUntrackObjc(ObjcRef key);
+
+// Utilities
+NSString *MochiNSString(CGoBuffer cstr); // Frees the buffer

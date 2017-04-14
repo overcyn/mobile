@@ -17,6 +17,8 @@
     [super loadView];
     textLabel.text = HelloGreetings(@"iOS and Gopher");
     
+    [MochiBridge sharedBridge].rootObject = @"Fupo";
+    
     int test = MochiTest();
     NSLog(@"%@", @(test));
 }
