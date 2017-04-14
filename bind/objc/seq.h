@@ -54,9 +54,15 @@ extern GoSeqRef *go_seq_from_refnum(int32_t refnum);
 // Objective-C objects that implement a Go interface.
 extern id go_seq_objc_from_refnum(int32_t refnum);
 
+
+
+
+
+// Converting from ObjC types to c types
 extern nbyteslice go_seq_from_objc_bytearray(NSData *data, int copy);
 extern nstring go_seq_from_objc_string(NSString *s);
 
+// Convert from c types to ObjC types
 extern NSData *go_seq_to_objc_bytearray(nbyteslice, int copy);
 extern NSString *go_seq_to_objc_string(nstring str);
 

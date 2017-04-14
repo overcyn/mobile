@@ -177,7 +177,10 @@ func (b *binder) GenGoSupport(outdir string) error {
 	if err != nil {
 		return err
 	}
-	return copyFile(filepath.Join(outdir, "seq.go"), filepath.Join(bindPkg.Dir, "seq.go.support"))
+	if err := copyFile(filepath.Join(outdir, "seq.go"), filepath.Join(bindPkg.Dir, "seq.go.support")); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *binder) GenObjcSupport(outdir string) error {
@@ -189,6 +192,15 @@ func (b *binder) GenObjcSupport(outdir string) error {
 		return err
 	}
 	if err := copyFile(filepath.Join(outdir, "seq_darwin.go"), filepath.Join(objcPkg.Dir, "seq_darwin.go.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(outdir, "mochi.h"), filepath.Join(objcPkg.Dir, "mochi.h.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(outdir, "mochi.m"), filepath.Join(objcPkg.Dir, "mochi.m.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(outdir, "mochi.go"), filepath.Join(objcPkg.Dir, "mochi.go.support")); err != nil {
 		return err
 	}
 	if err := copyFile(filepath.Join(outdir, "ref.h"), filepath.Join(objcPkg.Dir, "ref.h")); err != nil {
@@ -231,6 +243,7 @@ func (b *binder) GenObjc(pkg *types.Package, allPkg []*types.Package, outdir str
 	}
 	g.Init(wrappers)
 
+	// Build the .m file that wraps the cgo api
 	generate := func(w io.Writer) error {
 		if buildX {
 			printcmd("gobind %s -outdir=%s %s", bindOption, outdir, pkgPath)
@@ -248,6 +261,8 @@ func (b *binder) GenObjc(pkg *types.Package, allPkg []*types.Package, outdir str
 	if err := writeFile(mfile, generate); err != nil {
 		return "", err
 	}
+	
+	// Build the .objc.h file that wraps the cgo api
 	generate = func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -262,6 +277,8 @@ func (b *binder) GenObjc(pkg *types.Package, allPkg []*types.Package, outdir str
 	if err := writeFile(hfile, generate); err != nil {
 		return "", err
 	}
+	
+	// Build the .h file the wraps cgo interfaces
 	generate = func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -326,7 +343,11 @@ func GenObjcWrappers(pkgs []*build.Package, srcDir, pkgGen string) ([]*objc.Name
 		genNames = append(genNames, emb.Name)
 	}
 	g.Init(types, genNames)
+	
+	// For each reverse bound ObjC package, generate wrappers at /gen/src/Objc/...
 	for i, name := range g.Packages() {
+		fmt.Println("package", name)
+		
 		pkgDir := filepath.Join(pkgGen, "src", "ObjC", name)
 		if err := os.MkdirAll(pkgDir, 0700); err != nil {
 			return nil, err
@@ -341,10 +362,15 @@ func GenObjcWrappers(pkgs []*build.Package, srcDir, pkgGen string) ([]*objc.Name
 			_, err := io.Copy(w, &buf)
 			return err
 		}
+		if buildX {
+			printcmd("write file %s", pkgFile)
+		}
 		if err := writeFile(pkgFile, generate); err != nil {
 			return nil, fmt.Errorf("failed to create the ObjC wrapper package %s: %v", name, err)
 		}
 	}
+	
+	// Generate /src/gomobile_bind/interfaces.go.
 	generate := func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -357,6 +383,8 @@ func GenObjcWrappers(pkgs []*build.Package, srcDir, pkgGen string) ([]*objc.Name
 	if err := writeFile(filepath.Join(srcDir, "interfaces.go"), generate); err != nil {
 		return nil, fmt.Errorf("failed to create the ObjC wrapper Go file: %v", err)
 	}
+	
+	// Generate /gen/src/ObjC/interfaces.go
 	generate = func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -369,6 +397,8 @@ func GenObjcWrappers(pkgs []*build.Package, srcDir, pkgGen string) ([]*objc.Name
 	if err := writeFile(filepath.Join(pkgGen, "src", "ObjC", "interfaces.go"), generate); err != nil {
 		return nil, fmt.Errorf("failed to create the ObjC wrapper Go file: %v", err)
 	}
+	
+	// Generate /src/gomobile_bind/interfaces.h
 	generate = func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -381,6 +411,8 @@ func GenObjcWrappers(pkgs []*build.Package, srcDir, pkgGen string) ([]*objc.Name
 	if err := writeFile(filepath.Join(srcDir, "interfaces.h"), generate); err != nil {
 		return nil, fmt.Errorf("failed to create the ObjC wrapper header file: %v", err)
 	}
+	
+	// Generate /src/gomobile_bind/interfaces.m
 	generate = func(w io.Writer) error {
 		if buildN {
 			return nil
@@ -590,6 +622,7 @@ func (b *binder) GenJava(pkg *types.Package, allPkg []*types.Package, classes []
 }
 
 func (b *binder) GenGo(pkg *types.Package, allPkg []*types.Package, outdir string) error {
+	// outdir = /src/gomobile_bind
 	pkgName := "go_"
 	pkgPath := ""
 	if pkg != nil {
@@ -696,6 +729,7 @@ func loadExportData(pkgs []*build.Package, env []string, args ...string) ([]*typ
 	typePkgs := make([]*types.Package, len(pkgs))
 	imp := importer.Default()
 	for i, p := range pkgs {
+		// Copy package into fake go path
 		importPath := p.ImportPath
 		src := filepath.Join(pkgdir(env), importPath+".a")
 		dst := filepath.Join(fakegopath, "pkg/"+goos+"_"+goarch+"/"+importPath+".a")
@@ -706,6 +740,8 @@ func loadExportData(pkgs []*build.Package, env []string, args ...string) ([]*typ
 			typePkgs[i] = types.NewPackage(importPath, path.Base(importPath))
 			continue
 		}
+		
+		// Import package using go/importer
 		oldDefault := build.Default
 		build.Default = ctx // copy
 		build.Default.GOARCH = goarch

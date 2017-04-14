@@ -14,15 +14,19 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	_ "errors"
 )
 
 func goIOSBind(pkgs []*build.Package) error {
+	// Generate go wrappers for ObjC frameworks and write them to disk
 	srcDir := filepath.Join(tmpdir, "src", "gomobile_bind")
 	genDir := filepath.Join(tmpdir, "gen")
 	wrappers, err := GenObjcWrappers(pkgs, srcDir, genDir)
 	if err != nil {
 		return err
 	}
+	
+	// Get description of packages to build
 	env := darwinArmEnv
 	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
 	env = append(env, gopath)
@@ -31,6 +35,7 @@ func goIOSBind(pkgs []*build.Package) error {
 		return err
 	}
 
+	// Create a Binder from types/package
 	binder, err := newBinder(typesPkgs)
 	if err != nil {
 		return err
@@ -45,15 +50,19 @@ func goIOSBind(pkgs []*build.Package) error {
 		buildO = title + ".framework"
 	}
 
+	// For each package... generate Go wrappers
 	for _, pkg := range binder.pkgs {
 		if err := binder.GenGo(pkg, binder.pkgs, srcDir); err != nil {
 			return err
 		}
 	}
-	// Generate the error type.
+	
+	// Generate Go wrappers for the error type.
 	if err := binder.GenGo(nil, binder.pkgs, srcDir); err != nil {
 		return err
 	}
+	
+	// Create the "main" go package, that references the other go packages
 	mainFile := filepath.Join(tmpdir, "src/iosbin/main.go")
 	err = writeFile(mainFile, func(w io.Writer) error {
 		_, err := w.Write(iosBindFile)
@@ -63,22 +72,30 @@ func goIOSBind(pkgs []*build.Package) error {
 		return fmt.Errorf("failed to create the binding package for iOS: %v", err)
 	}
 
+	// Generate the ObjC wrappers for CGo
 	fileBases := make([]string, len(typesPkgs)+1)
 	for i, pkg := range binder.pkgs {
 		if fileBases[i], err = binder.GenObjc(pkg, binder.pkgs, srcDir, wrappers); err != nil {
 			return err
 		}
 	}
+	
+	// Generate Universe.h, Universe.m, Universe.objc.h. The ObjC wrappers for Error
 	if fileBases[len(fileBases)-1], err = binder.GenObjc(nil, binder.pkgs, srcDir, wrappers); err != nil {
 		return err
 	}
+	
+	// Copy in seq_darwin.m, seq_darwin.go, ref.h, seq.h
 	if err := binder.GenObjcSupport(srcDir); err != nil {
 		return err
 	}
+	
+	// Copy in seq.go
 	if err := binder.GenGoSupport(srcDir); err != nil {
 		return err
 	}
 
+	// Lipo to create fat binary
 	cmd := exec.Command("xcrun", "lipo", "-create")
 
 	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
@@ -126,6 +143,8 @@ func goIOSBind(pkgs []*build.Package) error {
 			return err
 		}
 	} else {
+		// Copy objc.h files
+		fmt.Println("fileBases", fileBases)
 		for i, fileBase := range fileBases {
 			headerFiles[i] = fileBase + ".objc.h"
 			err = copyFile(
@@ -135,12 +154,22 @@ func goIOSBind(pkgs []*build.Package) error {
 				return err
 			}
 		}
+		
+		// Copy ref.h
 		err = copyFile(
 			headers+"/ref.h",
 			srcDir+"/ref.h")
 		if err != nil {
 			return err
 		}
+		
+		// Copy mochi.h
+		if err = copyFile(headers+"/mochi.h", srcDir+"/mochi.h"); err != nil {
+			return err
+		}
+		
+		// Create joined header file "(Pkg).h"
+		fmt.Println("What the what?", headerFiles)
 		headerFiles = append(headerFiles, title+".h")
 		err = writeFile(headers+"/"+title+".h", func(w io.Writer) error {
 			return iosBindHeaderTmpl.Execute(w, map[string]interface{}{

@@ -14,7 +14,7 @@ import (
 
 // General mobile build environment. Initialized by envInit.
 var (
-	cwd          string
+	cwd          string // Working directory
 	gomobilepath string // $GOPATH/pkg/gomobile
 
 	androidEnv map[string][]string // android arch -> []string
@@ -32,6 +32,7 @@ var (
 	archs = []string{"arm", "arm64", "386", "amd64"}
 )
 
+// Creates the temp dir and verifies toolchain
 func buildEnvInit() (cleanup func(), err error) {
 	// Find gomobilepath.
 	gopath := goEnv("GOPATH")

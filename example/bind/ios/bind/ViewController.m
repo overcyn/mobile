@@ -4,6 +4,7 @@
 
 #import "ViewController.h"
 @import Hello;  // Gomobile bind generated framework
+#import "Hello/mochi.h"
 
 @interface ViewController ()
 @end
@@ -15,6 +16,9 @@
 - (void)loadView {
     [super loadView];
     textLabel.text = HelloGreetings(@"iOS and Gopher");
+    
+    int test = MochiTest();
+    NSLog(@"%@", @(test));
 }
 
 @end

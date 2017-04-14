@@ -1,0 +1,58 @@
+// Mochi 123
+int MochiTest();
+
+// @interface MochiObjcBridge : NSObject
+// @end
+
+// MochiObjcKind
+
+int64_t MochiObjcWithBool(bool v);
+bool MochiObjcToBool(int64_t v);
+int64_t MochiObjcWithInt64(int64_t v);
+int64_t MochiObjcToInt64(int64_t v);
+int64_t MochiObjcWithFloat64(double v);
+double MochiObjcToFloat64(int64_t v);
+
+// MochiObjcWithInt
+// MochiObjcToInt
+// MochiObjcWithUint
+// MochiObjcToUint
+// MochiObjcWithFloat
+// MochiObjcToFloat
+// MochiObjcWithString
+// MochiObjcToString
+// MochiObjcWithData
+// MochiObjcToData
+
+// MochiObjcArrayLen
+// MochiObjcArrayAt
+// MochiObjcDictKeys
+// MochiObjcDictAt
+// MochiObjcCall(char *string)
+// MochiObjcIsNil
+
+int32_t MochiTrackObjc(id value);
+id MochiGetObjc(int32_t key);
+void MochiUntrackObjc(int32_t key);
+
+
+// - (id)initWithRef:(id)ref;
+// - (BOOL)bool_;
+// - (NSData*)bytes_;
+// - (BridgeValueSlice*)call:(BridgeValueSlice*)args;
+// - (BridgeValueSlice*)callSlice:(BridgeValueSlice*)args;
+// - (BridgeValue*)copy;
+// - (BridgeValue*)elem;
+// - (BridgeValue*)fieldByName:(NSString*)name;
+// - (double)float_;
+// - (BridgeValue*)index:(long)i;
+// - (int64_t)int_;
+// - (BOOL)isNil;
+// - (long)kind;
+// - (long)len;
+// - (BridgeValue*)mapIndex:(BridgeValue*)key;
+// - (BridgeValueSlice*)mapKeys;
+// - (BridgeValue*)methodByName:(NSString*)name;
+// - (BOOL)ptrEqual:(BridgeValue*)v2;
+// - (NSString*)string_;
+// - (int64_t)uint_;

@@ -28,6 +28,7 @@ func goIOSBuild(pkg *build.Package) (map[string]bool, error) {
 		productName = "ProductName" // like xcode.
 	}
 
+	// Create the Info.plist
 	infoplist := new(bytes.Buffer)
 	if err := infoplistTmpl.Execute(infoplist, infoplistTmplData{
 		// TODO: better bundle id.
@@ -46,6 +47,7 @@ func goIOSBuild(pkg *build.Package) (map[string]bool, error) {
 		{tmpdir + "/main/Images.xcassets/AppIcon.appiconset/Contents.json", []byte(contentsJSON)},
 	}
 
+	// Write Info.plist and AppIcon and project.pbxproj to tmp folder
 	for _, file := range files {
 		if err := mkdir(filepath.Dir(file.name)); err != nil {
 			return nil, err
@@ -89,6 +91,7 @@ func goIOSBuild(pkg *build.Package) (map[string]bool, error) {
 		return nil, err
 	}
 
+	// Copy assets
 	// TODO(jbd): Set the launcher icon.
 	if err := iosCopyAssets(pkg, tmpdir); err != nil {
 		return nil, err

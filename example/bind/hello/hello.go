@@ -10,3 +10,7 @@ import "fmt"
 func Greetings(name string) string {
 	return fmt.Sprintf("Hello, %s!", name)
 }
+
+func Greetings2() []byte {
+    return []byte("Byte Slice")
+}

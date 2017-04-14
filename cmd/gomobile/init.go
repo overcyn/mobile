@@ -62,22 +62,26 @@ func init() {
 }
 
 func runInit(cmd *command) error {
+	// Get GOPATH
 	gopaths := filepath.SplitList(goEnv("GOPATH"))
 	if len(gopaths) == 0 {
 		return fmt.Errorf("GOPATH is not set")
 	}
 	gomobilepath = filepath.Join(gopaths[0], "pkg/gomobile")
 
+	// Delete $GOPATH/pkg/gomobile
 	verpath := filepath.Join(gomobilepath, "version")
 	if buildX || buildN {
 		fmt.Fprintln(xout, "GOMOBILE="+gomobilepath)
 	}
 	removeAll(gomobilepath)
 
+	// Make $GOPATH/pkg/gomobile
 	if err := mkdir(gomobilepath); err != nil {
 		return err
 	}
 
+	// Make $GOPATH/pkg/work
 	if buildN {
 		tmpdir = filepath.Join(gomobilepath, "work")
 	} else {
@@ -98,6 +102,7 @@ func runInit(cmd *command) error {
 		removeAll(tmpdir)
 	}()
 
+	// Build NDK stuff?
 	if buildN {
 		initNDK = "$NDK_PATH"
 		initOpenAL = "$OPENAL_PATH"
@@ -141,6 +146,7 @@ func runInit(cmd *command) error {
 		return err
 	}
 
+	// Install "golang.org/x/mobile/gl", "golang.org/x/mobile/app", "golang.org/x/mobile/exp/app/debug",
 	if runtime.GOOS == "darwin" {
 		// Install common x/mobile packages for local development.
 		// These are often slow to compile (due to cgo) and easy to forget.
@@ -168,14 +174,17 @@ func runInit(cmd *command) error {
 		}
 	}
 
+	// Install iOS libraries
 	if err := installDarwin(); err != nil {
 		return err
 	}
 
+	// Install OpenAl
 	if err := installOpenAL(gomobilepath); err != nil {
 		return err
 	}
 
+	// Write Go Version to $GOPATH/pkg/gomobile/version
 	if buildX || buildN {
 		printcmd("go version > %s", verpath)
 	}

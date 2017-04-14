@@ -1,0 +1,101 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <Foundation/Foundation.h>
+#include "mochi.h"
+
+int64_t MochiObjcWithBool(bool v) {
+    return MochiTrackObjc(@(v));
+}
+
+bool MochiObjcToBool(int64_t v) {
+    NSNumber *obj = MochiGetObjc(v);
+    return obj.boolValue;
+}
+
+int64_t MochiObjcWithInt64(int64_t v) {
+    return MochiTrackObjc(@(v));
+}
+
+int64_t MochiObjcToInt64(int64_t v) {
+    NSNumber *obj = MochiGetObjc(v);
+    return obj.longValue;
+}
+
+int64_t MochiObjcWithFloat64(double v) {
+    return MochiTrackObjc(@(v));
+}
+
+double MochiObjcToFloat64(int64_t v) {
+    NSNumber *obj = MochiGetObjc(v);
+    return obj.doubleValue;
+}
+
+@interface MochiTracker : NSObject {
+    NSMapTable *_mapTable;
+    int64_t _maxKey;
+}
+@end
+
+@implementation MochiTracker
+
++ (MochiTracker *)sharedTracker {
+    static MochiTracker *sTracker = nil;
+    static dispatch_once_t sOnce;
+    dispatch_once (&sOnce, ^{
+        sTracker = [[MochiTracker alloc] init];
+    });
+    return sTracker;
+}
+
+- (id)init {
+    if ((self = [super init])) {
+        _mapTable = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsObjectPersonality|NSPointerFunctionsStrongMemory 
+            valueOptions:NSPointerFunctionsObjectPersonality|NSPointerFunctionsStrongMemory capacity:0];
+        _maxKey = 0;
+    }
+    return self;
+}
+
+- (int32_t)track:(id)object {
+    @synchronized (self) {
+        _maxKey += 1;
+        [_mapTable setObject:object forKey:@(_maxKey)];
+        return _maxKey;
+    }
+}
+
+- (void)untrack:(int32_t)key {
+    @synchronized (self) {
+        id keyObj = @(key);
+        id object = [_mapTable objectForKey:keyObj];
+        if (object == nil) {
+            @throw @"Untrack error. No corresponding object for key.";
+        }
+        [_mapTable removeObjectForKey:keyObj];
+    }
+}
+
+- (id)get:(int32_t)key {
+    @synchronized (self) {
+        id object = [_mapTable objectForKey:(id)@(key)];
+        if (object == nil) {
+            @throw @"Get error. No corresponding object for key";
+        }
+        return object;
+    }
+}
+
+@end
+
+int32_t MochiTrackObjc(id value) {
+    return [[MochiTracker sharedTracker] track:value];
+}
+
+id MochiGetObjc(int32_t key) {
+    return [[MochiTracker sharedTracker] get:key];
+}
+
+void MochiUntrackObjc(int32_t key) {
+    [[MochiTracker sharedTracker] untrack:key];
+}
