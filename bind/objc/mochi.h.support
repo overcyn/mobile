@@ -1,58 +1,51 @@
+#import <Foundation/Foundation.h>
+
 // Mochi 123
 int MochiTest();
 
-// @interface MochiObjcBridge : NSObject
-// @end
+typedef int64_t ObjcRef;
+typedef int64_t GoRef;
+typedef struct CGoString {
+    void *ptr; // UTF8 encoded string
+    int64_t len; // length in bytes
+} CGoString;
 
+@interface MochiBridge : NSObject
++ (id)sharedBridge;
+@property (nonatomic, strong) id rootObject;
+@end
+
+ObjcRef MochiRootObjc();
+
+// ObjC Bridge
 // MochiObjcKind
 
-int64_t MochiObjcWithBool(bool v);
-bool MochiObjcToBool(int64_t v);
-int64_t MochiObjcWithInt64(int64_t v);
-int64_t MochiObjcToInt64(int64_t v);
-int64_t MochiObjcWithFloat64(double v);
-double MochiObjcToFloat64(int64_t v);
+// ObjcRef MochiObjcWithGo(GoRef v);
+// GoRef MochiObjcToGo(ObjcRef v);
 
-// MochiObjcWithInt
-// MochiObjcToInt
-// MochiObjcWithUint
-// MochiObjcToUint
-// MochiObjcWithFloat
-// MochiObjcToFloat
-// MochiObjcWithString
-// MochiObjcToString
-// MochiObjcWithData
-// MochiObjcToData
+ObjcRef MochiObjcBool(bool v);
+bool MochiObjcToBool(ObjcRef v);
+ObjcRef MochiObjcInt64(int64_t v);
+int64_t MochiObjcToInt64(ObjcRef v);
+ObjcRef MochiObjcFloat64(double v);
+double MochiObjcToFloat64(ObjcRef v);
+ObjcRef MochiObjcString(CGoString str); // Frees the buffer
+CGoString MochiObjcToString(ObjcRef v);
+// ObjcRef MochiObjcToBytes(char *bytes);
+// char *MochiObjcFromBytes(ObjcRef v);
 
-// MochiObjcArrayLen
-// MochiObjcArrayAt
-// MochiObjcDictKeys
-// MochiObjcDictAt
-// MochiObjcCall(char *string)
-// MochiObjcIsNil
+ObjcRef MochiObjcArray();
+int64_t MochiObjcArrayLen(ObjcRef v);
+void MochiObjcArrayAppend(ObjcRef v, ObjcRef a);
+ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index);
 
-int32_t MochiTrackObjc(id value);
-id MochiGetObjc(int32_t key);
-void MochiUntrackObjc(int32_t key);
+// ObjcRef MochiObjcDict();
+// ObjcRef MochiObjcDictKeys(ObjcRef v);
+// ObjcRef MochiObjcDictGet(ObjcRef v, ObjcRef key);
+// ObjcRef MochiObjcDictSet(ObjcRef v, ObjcRef key, ObjCRef value);
 
+ObjcRef MochiCallObjc(ObjcRef v, CGoString str, ObjcRef args);
 
-// - (id)initWithRef:(id)ref;
-// - (BOOL)bool_;
-// - (NSData*)bytes_;
-// - (BridgeValueSlice*)call:(BridgeValueSlice*)args;
-// - (BridgeValueSlice*)callSlice:(BridgeValueSlice*)args;
-// - (BridgeValue*)copy;
-// - (BridgeValue*)elem;
-// - (BridgeValue*)fieldByName:(NSString*)name;
-// - (double)float_;
-// - (BridgeValue*)index:(long)i;
-// - (int64_t)int_;
-// - (BOOL)isNil;
-// - (long)kind;
-// - (long)len;
-// - (BridgeValue*)mapIndex:(BridgeValue*)key;
-// - (BridgeValueSlice*)mapKeys;
-// - (BridgeValue*)methodByName:(NSString*)name;
-// - (BOOL)ptrEqual:(BridgeValue*)v2;
-// - (NSString*)string_;
-// - (int64_t)uint_;
+ObjcRef MochiTrackObjc(id value);
+id MochiGetObjc(ObjcRef key);
+void MochiUntrackObjc(ObjcRef key);

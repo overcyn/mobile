@@ -1,35 +1,32 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <Foundation/Foundation.h>
+#import <Foundation/Foundation.h>
 #include "mochi.h"
 
-int64_t MochiObjcWithBool(bool v) {
-    return MochiTrackObjc(@(v));
+@implementation MochiBridge
++ (id)sharedBridge {
+    static MochiBridge *sBridge = nil;
+    static dispatch_once_t sOnce;
+    dispatch_once (&sOnce, ^{
+        sBridge = [[MochiBridge alloc] init];
+    });
+    return sBridge;
 }
+@end
 
-bool MochiObjcToBool(int64_t v) {
-    NSNumber *obj = MochiGetObjc(v);
-    return obj.boolValue;
-}
+@interface ObjcValue : NSObject
+@property (nonatomic, strong) NSNumber *number;
+@end
+@implementation ObjcValue
 
-int64_t MochiObjcWithInt64(int64_t v) {
-    return MochiTrackObjc(@(v));
+- (id)initWithNumber:(NSNumber *)number {
+    if ((self = [super init])) {
+        _number = number;
+    }
+    return self;
 }
-
-int64_t MochiObjcToInt64(int64_t v) {
-    NSNumber *obj = MochiGetObjc(v);
-    return obj.longValue;
-}
-
-int64_t MochiObjcWithFloat64(double v) {
-    return MochiTrackObjc(@(v));
-}
-
-double MochiObjcToFloat64(int64_t v) {
-    NSNumber *obj = MochiGetObjc(v);
-    return obj.doubleValue;
-}
+@end
 
 @interface MochiTracker : NSObject {
     NSMapTable *_mapTable;
@@ -57,7 +54,7 @@ double MochiObjcToFloat64(int64_t v) {
     return self;
 }
 
-- (int32_t)track:(id)object {
+- (ObjcRef)track:(id)object {
     @synchronized (self) {
         _maxKey += 1;
         [_mapTable setObject:object forKey:@(_maxKey)];
@@ -65,7 +62,7 @@ double MochiObjcToFloat64(int64_t v) {
     }
 }
 
-- (void)untrack:(int32_t)key {
+- (void)untrack:(ObjcRef)key {
     @synchronized (self) {
         id keyObj = @(key);
         id object = [_mapTable objectForKey:keyObj];
@@ -76,7 +73,7 @@ double MochiObjcToFloat64(int64_t v) {
     }
 }
 
-- (id)get:(int32_t)key {
+- (id)get:(ObjcRef)key {
     @synchronized (self) {
         id object = [_mapTable objectForKey:(id)@(key)];
         if (object == nil) {
@@ -88,14 +85,114 @@ double MochiObjcToFloat64(int64_t v) {
 
 @end
 
-int32_t MochiTrackObjc(id value) {
+ObjcRef MochiRootObjc() {
+    id root = [[MochiBridge sharedBridge] rootObject];
+    return MochiTrackObjc(root);
+}
+
+ObjcRef MochiObjcBool(bool v) {
+    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
+    return MochiTrackObjc(val);
+}
+
+bool MochiObjcToBool(ObjcRef v) {
+    ObjcValue *val = MochiGetObjc(v);
+    return val.number.boolValue;
+}
+
+ObjcRef MochiObjcInt64(int64_t v) {
+    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
+    return MochiTrackObjc(val);
+}
+
+int64_t MochiObjcToInt64(ObjcRef v) {
+    ObjcValue *val = MochiGetObjc(v);
+    return val.number.longValue;
+}
+
+ObjcRef MochiObjcFloat64(double v) {
+    ObjcValue *val = [[ObjcValue alloc] initWithNumber:@(v)];
+    return MochiTrackObjc(val);
+}
+
+double MochiObjcToFloat64(ObjcRef v) {
+    ObjcValue *val = MochiGetObjc(v);
+    return val.number.doubleValue;
+}
+
+ObjcRef MochiObjcString(CGoString cstr) {
+    if (cstr.len == 0) {
+        return MochiTrackObjc(@"");
+    }
+    NSString *str = [[NSString alloc] initWithBytesNoCopy:cstr.ptr length:cstr.len encoding:NSUTF8StringEncoding freeWhenDone:YES];
+    return MochiTrackObjc(str);
+}
+
+CGoString MochiObjcToString(ObjcRef v) {
+    NSString *str = MochiGetObjc(v);
+    int len = [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (len == 0) {
+        return (CGoString){0};
+    }
+
+    char *buf = (char *)malloc(len);
+    assert(buf != NULL);
+    [str getBytes:buf maxLength:len usedLength:NULL encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, str.length) remainingRange:NULL];
+  
+    CGoString cstr;
+    cstr.ptr = buf;
+    cstr.len = len;
+    return cstr;
+}
+
+// Array
+
+ObjcRef MochiObjcArray() {
+    NSMutableArray *val = [NSMutableArray array];
+    return MochiTrackObjc(val);
+}
+
+int64_t MochiObjcArrayLen(ObjcRef v) {
+    NSMutableArray *val = MochiGetObjc(v);
+    return val.count;
+}
+
+void MochiObjcArrayAppend(ObjcRef v, ObjcRef a) {
+    NSMutableArray *obj = MochiGetObjc(a);
+    NSMutableArray *val = MochiGetObjc(v);
+    [val addObject:obj];
+}
+
+ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index) {
+    NSMutableArray *val = MochiGetObjc(v);
+    return MochiTrackObjc(val[index]);
+}
+
+// 
+
+ObjcRef MochiCallObjc(ObjcRef v, CGoString str, ObjcRef args) {
+    return 0;
+}
+
+// Tracker
+
+ObjcRef MochiTrackObjc(id value) {
+    if (value == nil) {
+        return 0;
+    }
     return [[MochiTracker sharedTracker] track:value];
 }
 
-id MochiGetObjc(int32_t key) {
+id MochiGetObjc(ObjcRef key) {
+    if (key == 0) {
+        return nil;
+    }
     return [[MochiTracker sharedTracker] get:key];
 }
 
-void MochiUntrackObjc(int32_t key) {
+void MochiUntrackObjc(ObjcRef key) {
+    if (key == 0) {
+        return;
+    }
     [[MochiTracker sharedTracker] untrack:key];
 }
