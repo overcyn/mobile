@@ -60,6 +60,7 @@
         id keyObj = @(key);
         id object = [_mapTable objectForKey:keyObj];
         if (object == nil) {
+            NSLog(@"UntrackError");
             @throw @"Untrack error. No corresponding object for key.";
         }
         [_mapTable removeObjectForKey:keyObj];
@@ -188,6 +189,7 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     id obj = MochiGetObjc(v);
     NSArray *args = MochiGetObjc(arguments);
     SEL sel = NSSelectorFromString(MochiNSString(cstr));
+    
     NSMethodSignature *sig = [[obj class] instanceMethodSignatureForSelector:sel];
     
     // Build invocation.
@@ -199,46 +201,46 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
         NSNumber *num = (NSNumber *)argObj;
         const char *type = sig.methodReturnType;
         
-        if (strcmp(type, "c")) {
+        if (strcmp(type, "c") == 0) {
             char arg = num.charValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "i")) {
+        } else if (strcmp(type, "i") == 0) {
             int arg = num.intValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "s")) {
+        } else if (strcmp(type, "s") == 0) {
             short arg = num.shortValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "l")) {
+        } else if (strcmp(type, "l") == 0) {
             long arg = num.longValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "q")) {
+        } else if (strcmp(type, "q") == 0) {
             long long arg = num.longLongValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "C")) {
+        } else if (strcmp(type, "C") == 0) {
             unsigned char arg = num.unsignedCharValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "I")) {
+        } else if (strcmp(type, "I") == 0) {
             unsigned int arg = num.unsignedIntValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "S")) {
+        } else if (strcmp(type, "S") == 0) {
             unsigned short arg = num.unsignedShortValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "L")) {
+        } else if (strcmp(type, "L") == 0) {
             unsigned long arg = num.unsignedLongValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "Q")) {
+        } else if (strcmp(type, "Q") == 0) {
             unsigned long long arg = num.unsignedLongLongValue;
             [inv setArgument:&arg atIndex:i+2];
-        }  else if (strcmp(type, "f")) {
+        }  else if (strcmp(type, "f") == 0) {
             float arg = num.floatValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "d")) {
+        } else if (strcmp(type, "d") == 0) {
             double arg = num.doubleValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "B")) {
+        } else if (strcmp(type, "B") == 0) {
             bool arg = num.boolValue;
             [inv setArgument:&arg atIndex:i+2];
-        } else if (strcmp(type, "@")) {
+        } else if (strcmp(type, "@") == 0) {
             [inv setArgument:&argObj atIndex:i+2];
         } else {
             @throw @"MochiObjcCall: Unsupported argument type";
@@ -251,18 +253,20 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     // Get return value.
     const char *type = [sig methodReturnType];
     id ret = nil;
-    if (strcmp(type, "c") || strcmp(type, "i") || strcmp(type, "s") || strcmp(type, "l") || strcmp(type, "q")
-        || strcmp(type, "C") || strcmp(type, "I") || strcmp(type, "S") || strcmp(type, "L") || strcmp(type, "Q")
-        || strcmp(type, "f") || strcmp(type, "d") || strcmp(type, "B")) {
+    if (strcmp(type, "c") == 0 || strcmp(type, "i") == 0 || strcmp(type, "s") == 0 || strcmp(type, "l") == 0 || strcmp(type, "q") == 0
+        || strcmp(type, "C") == 0 || strcmp(type, "I") == 0 || strcmp(type, "S") == 0 || strcmp(type, "L") == 0 || strcmp(type, "Q") == 0
+        || strcmp(type, "f") == 0 || strcmp(type, "d") == 0 || strcmp(type, "B") == 0) {
         
         void *buf = malloc(sig.methodReturnLength);
         [inv getReturnValue:&buf];
         ret = [[NSNumber alloc] initWithBytes:buf objCType:type];
         free(buf);
-    } else if (strcmp(type, "v")) {
+    } else if (strcmp(type, "v") == 0) {
         ret = nil;
-    } else if (strcmp(type, "@")) {
-        [inv getReturnValue:&ret];
+    } else if (strcmp(type, "@") == 0) {
+        void *retValue = nil;
+        [inv getReturnValue:&retValue];
+        ret = (__bridge id)retValue;
     } else {
         @throw @"MochiObjcCall: Unsupported return type";
     }

@@ -27,8 +27,14 @@ type Value struct {
 //export MochiTest
 func MochiTest() C.int {
     value := RootObject()
-    s := value.ToString()
+    appended := value.Call("uppercaseString", nil)
+    s := appended.ToString()
     fmt.Println(s)
+    
+    _ = Array([]*Value{ 
+        String("poo"),
+        String("blah"),
+    })
     
     v := Float64(34238974)
     blah := v.ToFloat64()
@@ -81,15 +87,7 @@ func (v *Value)ToFloat64() float64 {
 }
 
 func String(v string) *Value {
-    var cstr C.CGoBuffer 
-    if len(v) == 0 {
-        cstr = C.CGoBuffer{}
-    } else {
-        cstr = C.CGoBuffer{
-            ptr: C.CBytes([]byte(v)),
-            len: C.int64_t(len(v)),
-        }
-    }
+    cstr := cString(v)
     return NewValue(C.MochiObjcString(cstr));
 }
 
@@ -121,8 +119,27 @@ func (v *Value)ToArray() []*Value {
     return slice
 }
 
-// func (v *Value)Call(s string, args []*Value) {
-//     defer runtime.KeepAlive(v)
-//     return nil
-// }
+func (v *Value)Call(s string, args []*Value) *Value {
+    defer runtime.KeepAlive(v)
+    
+    argsRef := C.ObjcRef(0)
+    if len(args) > 0 {
+        array := Array(args)
+        defer runtime.KeepAlive(array)
+        argsRef = array.Ref()
+    }
+    return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsRef))
+}
 
+func cString(v string) C.CGoBuffer {
+    var cstr C.CGoBuffer 
+    if len(v) == 0 {
+        cstr = C.CGoBuffer{}
+    } else {
+        cstr = C.CGoBuffer{
+            ptr: C.CBytes([]byte(v)),
+            len: C.int64_t(len(v)),
+        }
+    }
+    return cstr
+}
