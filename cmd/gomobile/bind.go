@@ -203,6 +203,16 @@ func (b *binder) GenObjcSupport(outdir string) error {
 	if err := copyFile(filepath.Join(outdir, "mochi.go"), filepath.Join(objcPkg.Dir, "mochi.go.support")); err != nil {
 		return err
 	}
+	
+	if err := copyFile(filepath.Join(outdir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(outdir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(outdir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
+		return err
+	}
 	if err := copyFile(filepath.Join(outdir, "ref.h"), filepath.Join(objcPkg.Dir, "ref.h")); err != nil {
 		return err
 	}

@@ -167,6 +167,10 @@ func goIOSBind(pkgs []*build.Package) error {
 		if err = copyFile(headers+"/mochi.h", srcDir+"/mochi.h"); err != nil {
 			return err
 		}
+		// Copy mochigo.h
+		if err = copyFile(headers+"/mochigo.h", srcDir+"/mochigo.h"); err != nil {
+			return err
+		}
 		
 		// Create joined header file "(Pkg).h"
 		fmt.Println("What the what?", headerFiles)

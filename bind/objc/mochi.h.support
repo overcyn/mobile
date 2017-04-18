@@ -1,23 +1,23 @@
+#ifndef MOCHI_H
+#define MOCHI_H
+
 #import <Foundation/Foundation.h>
 
 int MochiTest();
 
 typedef int64_t ObjcRef;
-typedef int64_t GoRef;
+
 typedef struct CGoBuffer {
     void *ptr; // UTF8 encoded string
     int64_t len; // length in bytes
 } CGoBuffer;
 
-@interface MochiBridge : NSObject
-+ (MochiBridge *)sharedBridge;
-@property (nonatomic, strong) id rootObject;
+@interface MochiObjcBridge : NSObject
++ (MochiObjcBridge *)sharedBridge;
+@property (nonatomic, strong) id root;
 @end
 
 ObjcRef MochiObjcRoot();
-
-// ObjcRef MochiObjcWithGo(GoRef v);
-// GoRef MochiObjcToGo(ObjcRef v);
 
 ObjcRef MochiObjcBool(bool v);
 bool MochiObjcToBool(ObjcRef v);
@@ -50,4 +50,13 @@ id MochiGetObjc(ObjcRef key);
 void MochiUntrackObjc(ObjcRef key);
 
 // Utilities
-NSString *MochiNSString(CGoBuffer cstr); // Frees the buffer
+NSString *MochiCGoBufferToNSString(CGoBuffer buf); // Frees the buffer.
+CGoBuffer MochiNSStringToCGoBuffer(NSString *str); // Allocates a buffer.
+NSData *MochiCGoBufferToNSData(CGoBuffer buf); // Frees the buffer.
+CGoBuffer MochiNSDataToCGoBuffer(NSData *data); // Allocates a buffer.
+
+
+// ObjcRef MochiObjcWithGo(GoRef v);
+// GoRef MochiObjcToGo(ObjcRef v);
+
+#endif //MOCHI_H

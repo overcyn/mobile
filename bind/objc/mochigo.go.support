@@ -1,0 +1,205 @@
+package gomobile_bind
+
+// Go support functions for Objective-C. Note that this
+// file is copied into and compiled with the generated
+// bindings.
+
+/*
+#cgo CFLAGS: -x objective-c -fobjc-arc -Werror
+#cgo LDFLAGS: -framework Foundation
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "mochigo.h"
+*/
+import "C"
+
+import (
+    "reflect"
+    "sync"
+)
+
+var goRoot struct {
+    root interface{}
+}
+
+func GoRoot() interface{} {
+    return goRoot.root
+}
+
+func SetGoRoot(v interface{}) {
+    goRoot.root = v
+}
+
+//export mochiGoRoot
+func mochiGoRoot() C.GoRef {
+    rv := reflect.ValueOf(goRoot.root)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoBool
+func mochiGoBool(v C.bool) C.GoRef {
+    rv := reflect.ValueOf(bool(v))
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToBool 
+func mochiGoToBool(v C.GoRef) C.bool {
+    return C.bool(mochiGoGet(v).Bool())
+}
+
+//export mochiGoInt64
+func mochiGoInt64(v C.int64_t) C.GoRef {
+    rv := reflect.ValueOf(int64(v))
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToInt64
+func mochiGoToInt64(v C.GoRef) C.int64_t {
+    return C.int64_t(mochiGoGet(v).Int())
+}
+
+//export mochiGoFloat64
+func mochiGoFloat64(v C.double) C.GoRef {
+    rv := reflect.ValueOf(float64(v))
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToFloat64
+func mochiGoToFloat64(v C.GoRef) C.double {
+    return C.double(mochiGoGet(v).Float())
+}
+
+//export mochiGoString
+func mochiGoString(v C.CGoBuffer) C.GoRef {
+    defer C.free(v.ptr)
+    str := string(C.GoBytes(v.ptr, C.int(v.len)))
+    rv := reflect.ValueOf(str)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToString
+func mochiGoToString(v C.GoRef) C.CGoBuffer {
+    str := mochiGoGet(v).String()
+    return C.CGoBuffer{
+        ptr: C.CBytes([]byte(str)),
+        len: C.int64_t(len(str)),
+    }
+}
+
+//export mochiGoBytes
+func mochiGoBytes(v C.CGoBuffer) C.GoRef {
+    defer C.free(v.ptr)
+    bytes := C.GoBytes(v.ptr, C.int(v.len))
+    rv := reflect.ValueOf(bytes)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToBytes
+func mochiGoToBytes(v C.GoRef) C.CGoBuffer {
+    bytes := mochiGoGet(v).Bytes()
+    return C.CGoBuffer{
+        ptr: C.CBytes([]byte(bytes)),
+        len: C.int64_t(len(bytes)),
+    }
+}
+
+//export mochiGoArray
+func mochiGoArray() C.GoRef {
+    array := []reflect.Value{}
+    rv := reflect.ValueOf(array)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoArrayLen
+func mochiGoArrayLen(v C.GoRef) C.int64_t {
+    array := mochiGoGet(v).Interface().([]reflect.Value)
+    return C.int64_t(len(array))
+}
+
+//export mochiGoArrayAppend
+func mochiGoArrayAppend(v, a C.GoRef) C.GoRef {
+    array := mochiGoGet(v).Interface().([]reflect.Value)
+    elem := mochiGoGet(a)
+    newArray := append(array, elem)
+    rv := reflect.ValueOf(newArray)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoArrayAt
+func mochiGoArrayAt(v C.GoRef, idx C.int64_t) C.GoRef {
+    array := mochiGoGet(v).Interface().([]reflect.Value)
+    return mochiGoTrack(array[idx])
+}
+
+//export mochiGoCall
+func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
+    rv := mochiGoGet(v)
+    str := goString(name)
+    method := rv.MethodByName(str)
+    argsRv := mochiGoGet(args).Interface().([]reflect.Value)
+    
+    rlt := method.Call(argsRv)
+    return mochiGoTrack(reflect.ValueOf(rlt))
+}
+
+//export mochiGoField
+func mochiGoField(v C.GoRef, name C.CGoBuffer) C.GoRef {
+    rv := mochiGoGet(v)
+    str := goString(name)
+    rlt := rv.FieldByName(str)
+    return mochiGoTrack(rlt)
+}
+
+var tracker struct {
+    sync.Mutex
+    minRef int64
+    refs map[int64]reflect.Value
+}
+
+// TODO(KD): Remove
+type testStruct struct {
+}
+func (t testStruct)TestMethod() string {
+    return "Test method"
+}
+
+func init() {
+    tracker.refs = map[int64]reflect.Value{}
+    
+    // TODO(KD): remove
+    SetGoRoot(testStruct{})
+}
+
+func mochiGoTrack(v reflect.Value) C.GoRef {
+    tracker.Lock()
+    defer tracker.Unlock()
+    
+    tracker.minRef -= 1
+    tracker.refs[tracker.minRef] = v
+    return C.GoRef(tracker.minRef)
+}
+
+func mochiGoGet(ref C.GoRef) reflect.Value {
+    tracker.Lock()
+    defer tracker.Unlock()
+    
+    v, ok := tracker.refs[int64(ref)]
+    if !ok {
+        panic("Get error. No corresponding object for key.")
+    }
+    return v
+}
+
+//export mochiGoUntrack
+func mochiGoUntrack(ref C.GoRef) {
+    tracker.Lock()
+    defer tracker.Unlock()
+    
+    _, ok := tracker.refs[int64(ref)]
+    if !ok {
+        panic("Untrack error. No corresponding object for key.")
+    }
+    delete(tracker.refs, int64(ref))
+}

@@ -5,6 +5,7 @@
 #import "ViewController.h"
 @import Hello;  // Gomobile bind generated framework
 #import "Hello/mochi.h"
+#import "Hello/mochigo.h"
 
 @interface ViewController ()
 @end
@@ -17,7 +18,9 @@
     [super loadView];
     textLabel.text = HelloGreetings(@"iOS and Gopher");
     
-    [MochiBridge sharedBridge].rootObject = @"Fupo";
+    [MochiObjcBridge sharedBridge].root = @"Fupo";
+    MochiGoValue *goRoot = [MochiGoBridge sharedBridge].root;
+    NSLog(@"%@", [goRoot call:@"TestMethod" args:nil][0].toString);
     
     int test = MochiTest();
     NSLog(@"%@", @(test));

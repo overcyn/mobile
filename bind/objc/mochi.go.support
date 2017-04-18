@@ -26,7 +26,7 @@ type Value struct {
 
 //export MochiTest
 func MochiTest() C.int {
-    value := RootObject()
+    value := Root()
     appended := value.Call("uppercaseString", nil)
     s := appended.ToString()
     fmt.Println(s)
@@ -55,7 +55,7 @@ func (v *Value)Ref() C.ObjcRef {
     return C.ObjcRef(v.ref)
 }
 
-func RootObject() *Value {
+func Root() *Value {
     return NewValue(C.MochiObjcRoot())
 }
 
@@ -93,10 +93,16 @@ func String(v string) *Value {
 
 func (v *Value)ToString() string {
     defer runtime.KeepAlive(v)
-    cstr := C.MochiObjcToString(v.Ref())
-    str := C.GoBytes(cstr.ptr, C.int(cstr.len))
-    C.free(cstr.ptr)
-    return string(str)
+    buf := C.MochiObjcToString(v.Ref())
+    return goString(buf)
+}
+
+func Bytes(v string) *Value {
+    return nil
+}
+
+func (v *Value)ToBytes() []byte {
+    return nil
 }
 
 func Array(a []*Value) *Value {
@@ -142,4 +148,10 @@ func cString(v string) C.CGoBuffer {
         }
     }
     return cstr
+}
+
+func goString(buf C.CGoBuffer) string {
+    str := C.GoBytes(buf.ptr, C.int(buf.len))
+    C.free(buf.ptr)
+    return string(str)
 }

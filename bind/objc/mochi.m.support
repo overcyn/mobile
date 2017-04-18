@@ -4,12 +4,12 @@
 #import <Foundation/Foundation.h>
 #include "mochi.h"
 
-@implementation MochiBridge
+@implementation MochiObjcBridge
 + (id)sharedBridge {
-    static MochiBridge *sBridge = nil;
+    static MochiObjcBridge *sBridge = nil;
     static dispatch_once_t sOnce;
     dispatch_once (&sOnce, ^{
-        sBridge = [[MochiBridge alloc] init];
+        sBridge = [[MochiObjcBridge alloc] init];
     });
     return sBridge;
 }
@@ -83,7 +83,7 @@
 @end
 
 ObjcRef MochiObjcRoot() {
-    id root = [[MochiBridge sharedBridge] rootObject];
+    id root = [[MochiObjcBridge sharedBridge] root];
     return MochiTrackObjc(root);
 }
 
@@ -115,49 +115,20 @@ double MochiObjcToFloat64(ObjcRef v) {
 }
 
 ObjcRef MochiObjcString(CGoBuffer cstr) {
-    return MochiTrackObjc(MochiNSString(cstr));
+    return MochiTrackObjc(MochiCGoBufferToNSString(cstr));
 }
 
 CGoBuffer MochiObjcToString(ObjcRef v) {
-    NSString *str = MochiGetObjc(v);
-    int len = [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-    if (len == 0) {
-        return (CGoBuffer){0};
-    }
-
-    char *buf = (char *)malloc(len);
-    assert(buf != NULL);
-    [str getBytes:buf maxLength:len usedLength:NULL encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, str.length) remainingRange:NULL];
-  
-    CGoBuffer cstr;
-    cstr.ptr = buf;
-    cstr.len = len;
-    return cstr;
+    return MochiNSStringToCGoBuffer(MochiGetObjc(v));
 }
 
-ObjcRef MochiObjcBytes(CGoBuffer bytes) {
-    if (bytes.len == 0) {
-        return MochiTrackObjc([NSData data]);
-    }
-    NSData *data = [[NSData alloc] initWithBytesNoCopy:bytes.ptr length:bytes.len freeWhenDone:YES];
-    return MochiTrackObjc(data);
+ObjcRef MochiObjcBytes(CGoBuffer buf) {
+    return MochiTrackObjc(MochiCGoBufferToNSData(buf));
 }
 
 CGoBuffer MochiObjcToBytes(ObjcRef v) {
     NSData *data = MochiGetObjc(v);
-    int len = [data length];
-    if (len == 0) {
-        return (CGoBuffer){0};
-    }
-
-    char *buf = (char *)malloc(len);
-    assert(buf != NULL);
-    [data getBytes:buf length:len];
-  
-    CGoBuffer cstr;
-    cstr.ptr = buf;
-    cstr.len = len;
-    return cstr;
+    return MochiNSDataToCGoBuffer(data);
 }
 
 // Array
@@ -188,7 +159,7 @@ ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index) {
 ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     id obj = MochiGetObjc(v);
     NSArray *args = MochiGetObjc(arguments);
-    SEL sel = NSSelectorFromString(MochiNSString(cstr));
+    SEL sel = NSSelectorFromString(MochiCGoBufferToNSString(cstr));
     
     NSMethodSignature *sig = [[obj class] instanceMethodSignatureForSelector:sel];
     
@@ -289,9 +260,48 @@ void MochiUntrackObjc(ObjcRef key) {
 
 // Utilities
 
-NSString *MochiNSString(CGoBuffer cstr) {
+NSString *MochiCGoBufferToNSString(CGoBuffer cstr) {
     if (cstr.len == 0) {
         return @"";
     }
     return [[NSString alloc] initWithBytesNoCopy:cstr.ptr length:cstr.len encoding:NSUTF8StringEncoding freeWhenDone:YES];
+}
+
+CGoBuffer MochiNSStringToCGoBuffer(NSString *str) {
+    int len = [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (len == 0) {
+        return (CGoBuffer){0};
+    }
+
+    char *buf = (char *)malloc(len);
+    assert(buf != NULL);
+    [str getBytes:buf maxLength:len usedLength:NULL encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, str.length) remainingRange:NULL];
+  
+    CGoBuffer cstr;
+    cstr.ptr = buf;
+    cstr.len = len;
+    return cstr;
+}
+
+NSData *MochiCGoBufferToNSData(CGoBuffer buf) {
+    if (buf.len == 0) {
+        return [NSData data];
+    }
+    return [[NSData alloc] initWithBytesNoCopy:buf.ptr length:buf.len freeWhenDone:YES];
+}
+
+CGoBuffer MochiNSDataToCGoBuffer(NSData *data) {
+    int len = [data length];
+    if (len == 0) {
+        return (CGoBuffer){0};
+    }
+
+    char *buf = (char *)malloc(len);
+    assert(buf != NULL);
+    [data getBytes:buf length:len];
+  
+    CGoBuffer cstr;
+    cstr.ptr = buf;
+    cstr.len = len;
+    return cstr;
 }
