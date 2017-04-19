@@ -50,6 +50,10 @@
     return [self initWithGoRef:mochiGoInt64(v)];
 }
 
+- (id)initWithUnsignedLongLong:(unsigned long long)v {
+    return [self initWithGoRef:mochiGoUint64(v)];
+}
+
 - (id)initWithDouble:(double)v {
     return [self initWithGoRef:mochiGoFloat64(v)];
 }
@@ -80,6 +84,10 @@
 
 - (long long)toLongLong {
     return mochiGoToInt64(_ref);
+}
+
+- (unsigned long long)toUnsignedLongLong {
+    return mochiGoToUint64(_ref);
 }
 
 - (double)toDouble {
@@ -113,6 +121,10 @@
 - (MochiGoValue *)field:(NSString *)name {
     GoRef rlt = mochiGoField(_ref, MochiNSStringToCGoBuffer(name));
     return [[MochiGoValue alloc] initWithGoRef:rlt];
+}
+
+- (MochiGoValue *)objectForKeyedSubscript:(NSString *)key {
+    return [self field:key];
 }
 
 - (void)dealloc {

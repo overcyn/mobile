@@ -18,6 +18,7 @@ import "C"
 import (
     "reflect"
     "sync"
+    "fmt"
 )
 
 var goRoot struct {
@@ -58,6 +59,17 @@ func mochiGoInt64(v C.int64_t) C.GoRef {
 //export mochiGoToInt64
 func mochiGoToInt64(v C.GoRef) C.int64_t {
     return C.int64_t(mochiGoGet(v).Int())
+}
+
+//export mochiGoUint64
+func mochiGoUint64(v C.uint64_t) C.GoRef {
+    rv := reflect.ValueOf(uint64(v))
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoToUint64
+func mochiGoToUint64(v C.GoRef) C.uint64_t {
+    return C.uint64_t(mochiGoGet(v).Uint())
 }
 
 //export mochiGoFloat64
@@ -140,6 +152,7 @@ func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
     method := rv.MethodByName(str)
     argsRv := mochiGoGet(args).Interface().([]reflect.Value)
     
+    fmt.Println("Call:", str, method, rv)
     rlt := method.Call(argsRv)
     return mochiGoTrack(reflect.ValueOf(rlt))
 }
@@ -148,6 +161,12 @@ func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
 func mochiGoField(v C.GoRef, name C.CGoBuffer) C.GoRef {
     rv := mochiGoGet(v)
     str := goString(name)
+    kind := rv.Type().Kind()
+    for kind == reflect.Ptr || kind == reflect.Interface {
+        rv = rv.Elem()
+        kind = rv.Type().Kind()
+    }
+    
     rlt := rv.FieldByName(str)
     return mochiGoTrack(rlt)
 }

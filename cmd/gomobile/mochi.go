@@ -115,13 +115,13 @@ func runMochi(cmd *command) error {
 		return goAndroidBind(pkgs, targetArchs)
 	case "darwin":
 		// TODO: use targetArchs?
-		return mochiIOSBind(pkgs)
+		return mochiIOSBind(pkgs, cmd)
 	default:
 		return fmt.Errorf(`invalid -target=%q`, buildTarget)
 	}
 }
 
-func mochiIOSBind(pkgs []*build.Package) error {
+func mochiIOSBind(pkgs []*build.Package, command *command) error {
 	name := "mochi"
 	title := "Mochi"
 	tempDir := tmpdir
@@ -143,7 +143,9 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	// Create the "main" go package, that references the other go packages
 	mainPath := filepath.Join(tempDir, "src", "iosbin", "main.go")
 	err := writeFile(mainPath, func(w io.Writer) error {
-		_, err := w.Write(iosBindFile)
+		blah := command.flag.Args()[0]
+		format := fmt.Sprintf(string(iosBindFile), blah)
+		_, err := w.Write([]byte(format))
 		return err
 	})
 	if err != nil {

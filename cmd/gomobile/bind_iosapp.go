@@ -234,7 +234,7 @@ package main
 
 import (
 	_ "mochi/bridge"
-	_ "golang.org/x/mobile/example/bind/hello"
+	_ "%s"
 )
 
 import "C"
