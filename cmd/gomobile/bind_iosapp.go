@@ -5,6 +5,7 @@
 package main
 
 import (
+	_ "errors"
 	"fmt"
 	"go/build"
 	"io"
@@ -14,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-	_ "errors"
 )
 
 func goIOSBind(pkgs []*build.Package) error {
@@ -25,7 +25,7 @@ func goIOSBind(pkgs []*build.Package) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Get description of packages to build
 	env := darwinArmEnv
 	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
@@ -56,12 +56,12 @@ func goIOSBind(pkgs []*build.Package) error {
 			return err
 		}
 	}
-	
+
 	// Generate Go wrappers for the error type.
 	if err := binder.GenGo(nil, binder.pkgs, srcDir); err != nil {
 		return err
 	}
-	
+
 	// Create the "main" go package, that references the other go packages
 	mainFile := filepath.Join(tmpdir, "src/iosbin/main.go")
 	err = writeFile(mainFile, func(w io.Writer) error {
@@ -79,17 +79,17 @@ func goIOSBind(pkgs []*build.Package) error {
 			return err
 		}
 	}
-	
+
 	// Generate Universe.h, Universe.m, Universe.objc.h. The ObjC wrappers for Error
 	if fileBases[len(fileBases)-1], err = binder.GenObjc(nil, binder.pkgs, srcDir, wrappers); err != nil {
 		return err
 	}
-	
+
 	// Copy in seq_darwin.m, seq_darwin.go, ref.h, seq.h
 	if err := binder.GenObjcSupport(srcDir); err != nil {
 		return err
 	}
-	
+
 	// Copy in seq.go
 	if err := binder.GenGoSupport(srcDir); err != nil {
 		return err
@@ -154,7 +154,7 @@ func goIOSBind(pkgs []*build.Package) error {
 				return err
 			}
 		}
-		
+
 		// Copy ref.h
 		err = copyFile(
 			headers+"/ref.h",
@@ -162,16 +162,16 @@ func goIOSBind(pkgs []*build.Package) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Copy mochi.h
-		if err = copyFile(headers+"/mochi.h", srcDir+"/mochi.h"); err != nil {
+		if err = copyFile(headers+"/mochiobjc.h", srcDir+"/mochiobjc.h"); err != nil {
 			return err
 		}
 		// Copy mochigo.h
 		if err = copyFile(headers+"/mochigo.h", srcDir+"/mochigo.h"); err != nil {
 			return err
 		}
-		
+
 		// Create joined header file "(Pkg).h"
 		fmt.Println("What the what?", headerFiles)
 		headerFiles = append(headerFiles, title+".h")

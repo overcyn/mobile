@@ -11,7 +11,7 @@ package gomobile_bind
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "mochi.h"
+#include "mochiobjc.h"
 */
 import "C"
 

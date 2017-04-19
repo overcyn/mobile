@@ -4,7 +4,7 @@
 
 #import "ViewController.h"
 @import Hello;  // Gomobile bind generated framework
-#import "Hello/mochi.h"
+#import "Hello/mochiobjc.h"
 #import "Hello/mochigo.h"
 
 @interface ViewController ()
@@ -21,6 +21,7 @@
     [MochiObjcBridge sharedBridge].root = @"Fupo";
     MochiGoValue *goRoot = [MochiGoBridge sharedBridge].root;
     NSLog(@"%@", [goRoot call:@"TestMethod" args:nil][0].toString);
+    NSLog(@"%@", [goRoot field:@"blah"].toString);
     
     int test = MochiTest();
     NSLog(@"%@", @(test));

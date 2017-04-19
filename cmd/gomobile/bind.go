@@ -194,13 +194,13 @@ func (b *binder) GenObjcSupport(outdir string) error {
 	if err := copyFile(filepath.Join(outdir, "seq_darwin.go"), filepath.Join(objcPkg.Dir, "seq_darwin.go.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(outdir, "mochi.h"), filepath.Join(objcPkg.Dir, "mochi.h.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(outdir, "mochi.m"), filepath.Join(objcPkg.Dir, "mochi.m.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(outdir, "mochi.go"), filepath.Join(objcPkg.Dir, "mochi.go.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
 		return err
 	}
 	

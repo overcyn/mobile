@@ -2,7 +2,7 @@
 #define MOCHIGO_H
 
 #import <Foundation/Foundation.h>
-#include "mochi.h"
+#include "mochiobjc.h"
 @class MochiGoValue;
 
 typedef int64_t GoRef;

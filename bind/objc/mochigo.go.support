@@ -160,6 +160,7 @@ var tracker struct {
 
 // TODO(KD): Remove
 type testStruct struct {
+    blah string
 }
 func (t testStruct)TestMethod() string {
     return "Test method"
@@ -169,7 +170,7 @@ func init() {
     tracker.refs = map[int64]reflect.Value{}
     
     // TODO(KD): remove
-    SetGoRoot(testStruct{})
+    SetGoRoot(testStruct{blah: "fuck you react"})
 }
 
 func mochiGoTrack(v reflect.Value) C.GoRef {

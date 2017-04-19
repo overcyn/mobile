@@ -1,5 +1,5 @@
-#ifndef MOCHI_H
-#define MOCHI_H
+#ifndef MOCHIOBJC_H
+#define MOCHIOBJC_H
 
 #import <Foundation/Foundation.h>
 
@@ -59,4 +59,4 @@ CGoBuffer MochiNSDataToCGoBuffer(NSData *data); // Allocates a buffer.
 // ObjcRef MochiObjcWithGo(GoRef v);
 // GoRef MochiObjcToGo(ObjcRef v);
 
-#endif //MOCHI_H
+#endif //MOCHIOBJC_H
