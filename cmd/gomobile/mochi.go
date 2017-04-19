@@ -122,38 +122,26 @@ func runMochi(cmd *command) error {
 }
 
 func mochiIOSBind(pkgs []*build.Package) error {
+	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
+	name := "mochi"
+	title := "Mochi"
+
 	// Generate go wrappers for ObjC frameworks and write them to disk
 	tempDir := tmpdir
 	srcDir := filepath.Join(tempDir, "src", "gomobile_bind")
 	genDir := filepath.Join(tempDir, "gen")
 
-	// Get description of packages to build
-	env := darwinArmEnv
-	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
-	env = append(env, gopath)
-	typesPkgs, err := loadExportData(pkgs, env)
-	if err != nil {
-		return err
+	frameworkDir := buildO
+	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
+		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
 	}
-
-	// Create a Binder from types/package
-	binder, err := newBinder(typesPkgs)
-	if err != nil {
-		return err
-	}
-	name := binder.pkgs[0].Name()
-	title := strings.Title(name)
-
-	if buildO != "" && !strings.HasSuffix(buildO, ".framework") {
-		return fmt.Errorf("static framework name %q missing .framework suffix", buildO)
-	}
-	if buildO == "" {
-		buildO = title + ".framework"
+	if frameworkDir == "" {
+		frameworkDir = title + ".framework"
 	}
 
 	// Create the "main" go package, that references the other go packages
-	mainFile := filepath.Join(tempDir, "src/iosbin/main.go")
-	err = writeFile(mainFile, func(w io.Writer) error {
+	mainPath := filepath.Join(tempDir, "src", "iosbin", "main.go")
+	err := writeFile(mainPath, func(w io.Writer) error {
 		_, err := w.Write(iosBindFile)
 		return err
 	})
@@ -186,15 +174,15 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	}
 
 	// Build static framework output directory.
-	if err := removeAll(buildO); err != nil {
+	if err := removeAll(frameworkDir); err != nil {
 		return err
 	}
 
 	// Build framework directory structure.
-	headersDir := filepath.Join(buildO, "Versions", "A", "Headers")
-	resourcesDir := filepath.Join(buildO, "Versions", "A", "Resources")
-	modulesDir := filepath.Join(buildO, "Versions", "A", "Modules")
-	binaryPath := filepath.Join(buildO, "Versions", "A", title)
+	headersDir := filepath.Join(frameworkDir, "Versions", "A", "Headers")
+	resourcesDir := filepath.Join(frameworkDir, "Versions", "A", "Resources")
+	modulesDir := filepath.Join(frameworkDir, "Versions", "A", "Modules")
+	binaryPath := filepath.Join(frameworkDir, "Versions", "A", title)
 	if err := mkdir(headersDir); err != nil {
 		return err
 	}
@@ -204,19 +192,19 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	if err := mkdir(modulesDir); err != nil {
 		return err
 	}
-	if err := symlink("A", filepath.Join(buildO, "Versions", "Current")); err != nil {
+	if err := symlink("A", filepath.Join(frameworkDir, "Versions", "Current")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Headers"), filepath.Join(buildO, "Headers")); err != nil {
+	if err := symlink(filepath.Join("Versions", "Current", "Headers"), filepath.Join(frameworkDir, "Headers")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Resources"), filepath.Join(buildO, "Resources")); err != nil {
+	if err := symlink(filepath.Join("Versions", "Current", "Resources"), filepath.Join(frameworkDir, "Resources")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Modules"), filepath.Join(buildO, "Modules")); err != nil {
+	if err := symlink(filepath.Join("Versions", "Current", "Modules"), filepath.Join(frameworkDir, "Modules")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", title), filepath.Join(buildO, title)); err != nil {
+	if err := symlink(filepath.Join("Versions", "Current", title), filepath.Join(frameworkDir, title)); err != nil {
 		return err
 	}
 
@@ -253,7 +241,7 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
 		env = append(env, gopath)
 		arch := archClang(getenv(env, "GOARCH"))
-		path, err := goIOSBindArchive(name, mainFile, env, nil)
+		path, err := goIOSBindArchive(name, mainPath, env, nil)
 		if err != nil {
 			return fmt.Errorf("darwin-%s: %v", arch, err)
 		}
