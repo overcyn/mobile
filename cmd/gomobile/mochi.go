@@ -4,6 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"go/build"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 var cmdMochi = &command{
@@ -109,8 +115,154 @@ func runMochi(cmd *command) error {
 		return goAndroidBind(pkgs, targetArchs)
 	case "darwin":
 		// TODO: use targetArchs?
-		return goIOSBind(pkgs)
+		return mochiIOSBind(pkgs)
 	default:
 		return fmt.Errorf(`invalid -target=%q`, buildTarget)
 	}
+}
+
+func mochiIOSBind(pkgs []*build.Package) error {
+	// Generate go wrappers for ObjC frameworks and write them to disk
+	tempDir := tmpdir
+	srcDir := filepath.Join(tempDir, "src", "gomobile_bind")
+	genDir := filepath.Join(tempDir, "gen")
+
+	// Get description of packages to build
+	env := darwinArmEnv
+	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
+	env = append(env, gopath)
+	typesPkgs, err := loadExportData(pkgs, env)
+	if err != nil {
+		return err
+	}
+
+	// Create a Binder from types/package
+	binder, err := newBinder(typesPkgs)
+	if err != nil {
+		return err
+	}
+	name := binder.pkgs[0].Name()
+	title := strings.Title(name)
+
+	if buildO != "" && !strings.HasSuffix(buildO, ".framework") {
+		return fmt.Errorf("static framework name %q missing .framework suffix", buildO)
+	}
+	if buildO == "" {
+		buildO = title + ".framework"
+	}
+
+	// Create the "main" go package, that references the other go packages
+	mainFile := filepath.Join(tempDir, "src/iosbin/main.go")
+	err = writeFile(mainFile, func(w io.Writer) error {
+		_, err := w.Write(iosBindFile)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create the binding package for iOS: %v", err)
+	}
+
+	// Get the supporting files
+	objcPkg, err := ctx.Import("golang.org/x/mobile/bind/objc", "", build.FindOnly)
+	if err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(srcDir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
+		return err
+	}
+
+	// Build static framework output directory.
+	if err := removeAll(buildO); err != nil {
+		return err
+	}
+
+	// Build framework directory structure.
+	headersDir := filepath.Join(buildO, "Versions", "A", "Headers")
+	resourcesDir := filepath.Join(buildO, "Versions", "A", "Resources")
+	modulesDir := filepath.Join(buildO, "Versions", "A", "Modules")
+	binaryPath := filepath.Join(buildO, "Versions", "A", title)
+	if err := mkdir(headersDir); err != nil {
+		return err
+	}
+	if err := mkdir(resourcesDir); err != nil {
+		return err
+	}
+	if err := mkdir(modulesDir); err != nil {
+		return err
+	}
+	if err := symlink("A", filepath.Join(buildO, "Versions", "Current")); err != nil {
+		return err
+	}
+	if err := symlink(filepath.Join("Versions", "Current", "Headers"), filepath.Join(buildO, "Headers")); err != nil {
+		return err
+	}
+	if err := symlink(filepath.Join("Versions", "Current", "Resources"), filepath.Join(buildO, "Resources")); err != nil {
+		return err
+	}
+	if err := symlink(filepath.Join("Versions", "Current", "Modules"), filepath.Join(buildO, "Modules")); err != nil {
+		return err
+	}
+	if err := symlink(filepath.Join("Versions", "Current", title), filepath.Join(buildO, title)); err != nil {
+		return err
+	}
+
+	// Copy in headers.
+	if err = copyFile(filepath.Join(headersDir, "mochiobjc.h"), filepath.Join(srcDir, "mochiobjc.h")); err != nil {
+		return err
+	}
+	if err = copyFile(filepath.Join(headersDir, "mochigo.h"), filepath.Join(srcDir, "mochigo.h")); err != nil {
+		return err
+	}
+
+	// Copy in resources.
+	if err := ioutil.WriteFile(filepath.Join(resourcesDir, "Info.plist"), []byte(iosBindInfoPlist), 0666); err != nil {
+		return err
+	}
+
+	// Write modulemap.
+	var mmVals = struct {
+		Module  string
+		Headers []string
+	}{
+		Module:  title,
+		Headers: nil,
+	}
+	err = writeFile(filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
+		return iosModuleMapTmpl.Execute(w, mmVals)
+	})
+	if err != nil {
+		return err
+	}
+
+	// Lipo to create fat binary
+	cmd := exec.Command("xcrun", "lipo", "-create")
+	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
+		env = append(env, gopath)
+		arch := archClang(getenv(env, "GOARCH"))
+		path, err := goIOSBindArchive(name, mainFile, env, nil)
+		if err != nil {
+			return fmt.Errorf("darwin-%s: %v", arch, err)
+		}
+		cmd.Args = append(cmd.Args, "-arch", arch, path)
+	}
+	cmd.Args = append(cmd.Args, "-o", binaryPath)
+	if err := runCmd(cmd); err != nil {
+		return err
+	}
+
+	return nil
 }

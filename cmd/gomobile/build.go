@@ -241,6 +241,9 @@ type binInfo struct {
 }
 
 func init() {
+	addBuildFlags(cmdMochi)
+	addBuildFlagsNVXWork(cmdMochi)
+
 	addBuildFlags(cmdBuild)
 	addBuildFlagsNVXWork(cmdBuild)
 

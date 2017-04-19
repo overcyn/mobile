@@ -221,7 +221,7 @@ const iosBindInfoPlist = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 var iosModuleMapTmpl = template.Must(template.New("iosmmap").Parse(`framework module "{{.Module}}" {
-	header "ref.h"
+	// header "ref.h"
 {{range .Headers}}    header "{{.}}"
 {{end}}
     export *

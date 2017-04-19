@@ -139,9 +139,9 @@ func (g *ObjcGen) GenH() error {
 	for _, m := range g.modules {
 		g.Printf("@import %s;\n", m)
 	}
-	if g.Pkg != nil {
-		g.Printf("#include \"Universe.objc.h\"\n\n")
-	}
+	// if g.Pkg != nil {
+	// 	g.Printf("#include \"Universe.objc.h\"\n\n")
+	// }
 
 	if g.Pkg != nil {
 		for _, pkg := range g.Pkg.Imports() {

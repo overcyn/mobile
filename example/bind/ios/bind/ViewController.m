@@ -16,12 +16,13 @@
 
 - (void)loadView {
     [super loadView];
-    textLabel.text = HelloGreetings(@"iOS and Gopher");
     
     [MochiObjcBridge sharedBridge].root = @"Fupo";
     MochiGoValue *goRoot = [MochiGoBridge sharedBridge].root;
     NSLog(@"%@", [goRoot call:@"TestMethod" args:nil][0].toString);
     NSLog(@"%@", [goRoot field:@"blah"].toString);
+    
+    textLabel.text = [goRoot field:@"blah"].toString;
     
     int test = MochiTest();
     NSLog(@"%@", @(test));

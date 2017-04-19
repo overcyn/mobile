@@ -162,6 +162,7 @@ func helpDocumentation(path string) {
 
 var commands = []*command{
 	// TODO(crawshaw): cmdRun
+	cmdMochi,
 	cmdBind,
 	cmdBuild,
 	cmdClean,
