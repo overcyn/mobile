@@ -5,12 +5,27 @@
 // Package hello is a trivial package for gomobile bind example.
 package hello
 
-import "fmt"
+import (
+	"fmt"
+	"mochi/bridge"
+)
+
+type testStruct struct {
+	blah string
+}
+
+func (t testStruct) TestMethod() string {
+	return "Test method"
+}
+
+func init() {
+	bridge.SetGoRoot(testStruct{blah: "fuck you javascript"})
+}
 
 func Greetings(name string) string {
 	return fmt.Sprintf("Hello, %s!", name)
 }
 
 func Greetings2() []byte {
-    return []byte("Byte Slice")
+	return []byte("Byte Slice")
 }

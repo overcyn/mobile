@@ -188,36 +188,16 @@ func (b *binder) GenObjcSupport(outdir string) error {
 	if err != nil {
 		return err
 	}
-	// if err := copyFile(filepath.Join(outdir, "seq_darwin.m"), filepath.Join(objcPkg.Dir, "seq_darwin.m.support")); err != nil {
-	// 	return err
-	// }
-	// if err := copyFile(filepath.Join(outdir, "seq_darwin.go"), filepath.Join(objcPkg.Dir, "seq_darwin.go.support")); err != nil {
-	// 	return err
-	// }
-	if err := copyFile(filepath.Join(outdir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "seq_darwin.m"), filepath.Join(objcPkg.Dir, "seq_darwin.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(outdir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "seq_darwin.go"), filepath.Join(objcPkg.Dir, "seq_darwin.go.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(outdir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
+	if err := copyFile(filepath.Join(outdir, "ref.h"), filepath.Join(objcPkg.Dir, "ref.h")); err != nil {
 		return err
 	}
-
-	if err := copyFile(filepath.Join(outdir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
-		return err
-	}
-	if err := copyFile(filepath.Join(outdir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
-		return err
-	}
-	if err := copyFile(filepath.Join(outdir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
-		return err
-	}
-	return nil
-	// if err := copyFile(filepath.Join(outdir, "ref.h"), filepath.Join(objcPkg.Dir, "ref.h")); err != nil {
-	// 	return err
-	// }
-	// return copyFile(filepath.Join(outdir, "seq.h"), filepath.Join(objcPkg.Dir, "seq.h"))
+	return copyFile(filepath.Join(outdir, "seq.h"), filepath.Join(objcPkg.Dir, "seq.h"))
 }
 
 func (b *binder) GenObjc(pkg *types.Package, allPkg []*types.Package, outdir string, wrappers []*objc.Named) (string, error) {

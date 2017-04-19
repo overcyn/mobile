@@ -3,9 +3,7 @@
 // license that can be found in the LICENSE file.
 
 #import "ViewController.h"
-@import Hello;  // Gomobile bind generated framework
-#import "Hello/mochiobjc.h"
-#import "Hello/mochigo.h"
+@import Mochi;
 
 @interface ViewController ()
 @end

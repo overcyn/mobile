@@ -1,4 +1,4 @@
-package gomobile_bind
+package bridge
 
 // Go support functions for Objective-C. Note that this
 // file is copied into and compiled with the generated
@@ -158,19 +158,8 @@ var tracker struct {
     refs map[int64]reflect.Value
 }
 
-// TODO(KD): Remove
-type testStruct struct {
-    blah string
-}
-func (t testStruct)TestMethod() string {
-    return "Test method"
-}
-
 func init() {
     tracker.refs = map[int64]reflect.Value{}
-    
-    // TODO(KD): remove
-    SetGoRoot(testStruct{blah: "fuck you react"})
 }
 
 func mochiGoTrack(v reflect.Value) C.GoRef {

@@ -41,7 +41,7 @@ package gomobile_bind
 /*
 #include <stdlib.h>
 #include <stdint.h>
-// #include "seq.h"
+#include "seq.h"
 #include "%[1]s.h"
 
 */

@@ -125,15 +125,19 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	name := "mochi"
 	title := "Mochi"
 	tempDir := tmpdir
-	srcDir := filepath.Join(tempDir, "src", "gomobile_bind")
 	genDir := filepath.Join(tempDir, "gen")
-
 	frameworkDir := buildO
 	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
 		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
 	}
 	if frameworkDir == "" {
 		frameworkDir = title + ".framework"
+	}
+
+	// Build the "mochi/bridge" dir
+	bridgeDir := filepath.Join(genDir, "src", "mochi", "bridge")
+	if err := mkdir(bridgeDir); err != nil {
+		return err
 	}
 
 	// Create the "main" go package, that references the other go packages
@@ -151,22 +155,22 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	if err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(srcDir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
 		return err
 	}
 
@@ -206,10 +210,10 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	}
 
 	// Copy in headers.
-	if err = copyFile(filepath.Join(headersDir, "mochiobjc.h"), filepath.Join(srcDir, "mochiobjc.h")); err != nil {
+	if err = copyFile(filepath.Join(headersDir, "mochiobjc.h"), filepath.Join(bridgeDir, "mochiobjc.h")); err != nil {
 		return err
 	}
-	if err = copyFile(filepath.Join(headersDir, "mochigo.h"), filepath.Join(srcDir, "mochigo.h")); err != nil {
+	if err = copyFile(filepath.Join(headersDir, "mochigo.h"), filepath.Join(bridgeDir, "mochigo.h")); err != nil {
 		return err
 	}
 
@@ -224,7 +228,7 @@ func mochiIOSBind(pkgs []*build.Package) error {
 		Headers []string
 	}{
 		Module:  title,
-		Headers: nil,
+		Headers: []string{"mochiobjc.h", "mochigo.h"},
 	}
 	err = writeFile(filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
 		return iosModuleMapTmpl.Execute(w, mmVals)
@@ -237,7 +241,7 @@ func mochiIOSBind(pkgs []*build.Package) error {
 	archs := map[string]string{}
 	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
 		arch := getenv(env, "GOARCH")
-		env = append(env, "GOPATH="+filepath.Join(genDir, os.Getenv("GOPATH")))
+		env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
 		path := filepath.Join(tempDir, name+"-"+arch+".a")
 		if err = goBuild(mainPath, env, "-buildmode=c-archive", "-o", path); err != nil {
 			return fmt.Errorf("darwin-%s: %v", arch, err)

@@ -26,7 +26,7 @@ func goIOSBind(pkgs []*build.Package) error {
 		return err
 	}
 
-	// Get description of packages to build
+	// Get description of packages to build.
 	env := darwinArmEnv
 	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
 	env = append(env, gopath)
@@ -163,15 +163,6 @@ func goIOSBind(pkgs []*build.Package) error {
 			return err
 		}
 
-		// Copy mochi.h
-		if err = copyFile(headers+"/mochiobjc.h", srcDir+"/mochiobjc.h"); err != nil {
-			return err
-		}
-		// Copy mochigo.h
-		if err = copyFile(headers+"/mochigo.h", srcDir+"/mochigo.h"); err != nil {
-			return err
-		}
-
 		// Create joined header file "(Pkg).h"
 		fmt.Println("What the what?", headerFiles)
 		headerFiles = append(headerFiles, title+".h")
@@ -242,7 +233,8 @@ var iosBindFile = []byte(`
 package main
 
 import (
-	_ "../gomobile_bind"
+	_ "mochi/bridge"
+	_ "golang.org/x/mobile/example/bind/hello"
 )
 
 import "C"
