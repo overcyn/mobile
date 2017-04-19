@@ -122,11 +122,8 @@ func runMochi(cmd *command) error {
 }
 
 func mochiIOSBind(pkgs []*build.Package) error {
-	gopath := fmt.Sprintf("GOPATH=%s%c%s", genDir, filepath.ListSeparator, os.Getenv("GOPATH"))
 	name := "mochi"
 	title := "Mochi"
-
-	// Generate go wrappers for ObjC frameworks and write them to disk
 	tempDir := tmpdir
 	srcDir := filepath.Join(tempDir, "src", "gomobile_bind")
 	genDir := filepath.Join(tempDir, "gen")
@@ -236,21 +233,23 @@ func mochiIOSBind(pkgs []*build.Package) error {
 		return err
 	}
 
-	// Lipo to create fat binary
-	cmd := exec.Command("xcrun", "lipo", "-create")
+	// Build platform binaries.
+	archs := map[string]string{}
 	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
-		env = append(env, gopath)
-		arch := archClang(getenv(env, "GOARCH"))
-		path, err := goIOSBindArchive(name, mainPath, env, nil)
-		if err != nil {
+		arch := getenv(env, "GOARCH")
+		env = append(env, "GOPATH="+filepath.Join(genDir, os.Getenv("GOPATH")))
+		path := filepath.Join(tempDir, name+"-"+arch+".a")
+		if err = goBuild(mainPath, env, "-buildmode=c-archive", "-o", path); err != nil {
 			return fmt.Errorf("darwin-%s: %v", arch, err)
 		}
-		cmd.Args = append(cmd.Args, "-arch", arch, path)
-	}
-	cmd.Args = append(cmd.Args, "-o", binaryPath)
-	if err := runCmd(cmd); err != nil {
-		return err
+		archs[arch] = path
 	}
 
-	return nil
+	// Lipo to build fat binary.
+	cmd := exec.Command("xcrun", "lipo", "-create")
+	for arch, path := range archs {
+		cmd.Args = append(cmd.Args, "-arch", archClang(arch), path)
+	}
+	cmd.Args = append(cmd.Args, "-o", binaryPath)
+	return runCmd(cmd)
 }
