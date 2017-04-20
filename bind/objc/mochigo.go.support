@@ -18,7 +18,6 @@ import "C"
 import (
     "reflect"
     "sync"
-    "fmt"
 )
 
 var goRoot struct {
@@ -145,6 +144,31 @@ func mochiGoArrayAt(v C.GoRef, idx C.int64_t) C.GoRef {
     return mochiGoTrack(array[idx])
 }
 
+//export mochiGoMap
+func mochiGoMap() C.GoRef {
+    m := map[reflect.Value]reflect.Value{}
+    rv := reflect.ValueOf(m)
+    return mochiGoTrack(rv)
+}
+
+//export mochiGoMapKeys
+func mochiGoMapKeys(v C.GoRef) C.GoRef {
+    keys := mochiGoGet(v).MapKeys()
+    return mochiGoTrack(reflect.ValueOf(keys))
+}
+
+//export mochiGoMapGet
+func mochiGoMapGet(v, key C.GoRef) C.GoRef {
+    m := mochiGoGet(v)
+    k := mochiGoGet(key)
+    return mochiGoTrack(m.MapIndex(k))
+}
+
+//export mochiGoMapSet
+func mochiGoMapSet(m, key, value C.GoRef) {
+    mochiGoGet(m).SetMapIndex(mochiGoGet(key), mochiGoGet(value))
+}
+
 //export mochiGoCall
 func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
     rv := mochiGoGet(v)
@@ -152,7 +176,6 @@ func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
     method := rv.MethodByName(str)
     argsRv := mochiGoGet(args).Interface().([]reflect.Value)
     
-    fmt.Println("Call:", str, method, rv)
     rlt := method.Call(argsRv)
     return mochiGoTrack(reflect.ValueOf(rlt))
 }

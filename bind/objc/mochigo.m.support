@@ -112,6 +112,16 @@
     return array;
 }
 
+- (NSMapTable *)toMapTable {
+    NSMapTable *mapTable = [NSMapTable strongToStrongObjectsMapTable];
+    MochiGoValue *array = [[MochiGoValue alloc] initWithGoRef:mochiGoMapKeys(_ref)];
+    for (MochiGoValue *key in array.toArray) {
+        MochiGoValue *value = [[MochiGoValue alloc] initWithGoRef:mochiGoMapGet(_ref, key.ref)];
+        [mapTable setObject:value forKey:key];
+    }
+    return mapTable;
+}
+
 - (NSArray<MochiGoValue *> *)call:(NSString *)method args:(NSArray<MochiGoValue *> *)args {
     MochiGoValue *argsArray = [[MochiGoValue alloc] initWithArray:args];
     GoRef rlt = mochiGoCall(_ref, MochiNSStringToCGoBuffer(method), argsArray.ref);
