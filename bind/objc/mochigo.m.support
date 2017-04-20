@@ -122,6 +122,14 @@
     return mapTable;
 }
 
+- (BOOL)isNil {
+    return mochiGoIsNil(_ref);
+}
+
+- (MochiGoValue *)elem {
+    return [[MochiGoValue alloc] initWithGoRef:mochiGoElem(_ref)];
+}
+
 - (NSArray<MochiGoValue *> *)call:(NSString *)method args:(NSArray<MochiGoValue *> *)args {
     MochiGoValue *argsArray = [[MochiGoValue alloc] initWithArray:args];
     GoRef rlt = mochiGoCall(_ref, MochiNSStringToCGoBuffer(method), argsArray.ref);

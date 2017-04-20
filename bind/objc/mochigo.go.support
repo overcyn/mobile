@@ -169,13 +169,24 @@ func mochiGoMapSet(m, key, value C.GoRef) {
     mochiGoGet(m).SetMapIndex(mochiGoGet(key), mochiGoGet(value))
 }
 
+//export mochiGoIsNil
+func mochiGoIsNil(v C.GoRef) C.bool {
+    return C.bool(mochiGoGet(v).IsNil())
+}
+
+//export mochiGoElem
+func mochiGoElem(v C.GoRef) C.GoRef {
+    rv := mochiGoGet(v)
+    return mochiGoTrack(rv.Elem())
+}
+
 //export mochiGoCall
 func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
     rv := mochiGoGet(v)
     str := goString(name)
     method := rv.MethodByName(str)
     argsRv := mochiGoGet(args).Interface().([]reflect.Value)
-    
+        
     rlt := method.Call(argsRv)
     return mochiGoTrack(reflect.ValueOf(rlt))
 }
@@ -184,10 +195,12 @@ func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
 func mochiGoField(v C.GoRef, name C.CGoBuffer) C.GoRef {
     rv := mochiGoGet(v)
     str := goString(name)
-    kind := rv.Type().Kind()
+    
+    // Always underlying value.
+    kind := rv.Kind()
     for kind == reflect.Ptr || kind == reflect.Interface {
         rv = rv.Elem()
-        kind = rv.Type().Kind()
+        kind = rv.Kind()
     }
     
     rlt := rv.FieldByName(str)
