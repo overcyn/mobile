@@ -3,6 +3,7 @@
 #include <string.h>
 #import <Foundation/Foundation.h>
 #include "mochiobjc.h"
+#include "mochigo.h"
 
 @implementation MochiObjcBridge
 + (id)sharedBridge {
@@ -114,6 +115,15 @@ double MochiObjcToFloat64(ObjcRef v) {
     return val.doubleValue;
 }
 
+ObjcRef MochiObjcGoRef(GoRef v) {
+    return MochiTrackObjc([[MochiGoValue alloc] initWithGoRef:v]);
+}
+
+GoRef MochiObjcToGoRef(ObjcRef v) {
+    MochiGoValue *val = MochiGetObjc(v);
+    return val.ref;
+}
+
 ObjcRef MochiObjcString(CGoBuffer cstr) {
     return MochiTrackObjc(MochiCGoBufferToNSString(cstr));
 }
@@ -143,8 +153,8 @@ int64_t MochiObjcArrayLen(ObjcRef v) {
     return val.count;
 }
 
-void MochiObjcArrayAppend(ObjcRef v, ObjcRef a) {
-    NSMutableArray *obj = MochiGetObjc(a);
+void MochiObjcArrayAppend(ObjcRef v, ObjcRef elem) {
+    id obj = MochiGetObjc(elem);
     NSMutableArray *val = MochiGetObjc(v);
     [val addObject:obj];
 }
@@ -155,6 +165,16 @@ ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index) {
 }
 
 // Call
+
+@interface _MochiObjcCallSentinel : NSObject
+@end
+@implementation _MochiObjcCallSentinel
+@end
+
+ObjcRef MochiObjcCallSentinel() {
+    _MochiObjcCallSentinel *sentinel = [[_MochiObjcCallSentinel alloc] init];
+    return MochiTrackObjc(sentinel);
+}
 
 ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     id obj = MochiGetObjc(v);
@@ -212,7 +232,12 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
             bool arg = num.boolValue;
             [inv setArgument:&arg atIndex:i+2];
         } else if (strcmp(type, "@") == 0) {
-            [inv setArgument:&argObj atIndex:i+2];
+            if ([argObj isKindOfClass:[_MochiObjcCallSentinel class]]) {
+                id nilObject = nil;
+                [inv setArgument:&nilObject atIndex:i+2];
+            } else {
+                [inv setArgument:&argObj atIndex:i+2];
+            }
         } else {
             @throw @"MochiObjcCall: Unsupported argument type";
         }

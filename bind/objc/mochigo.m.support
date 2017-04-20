@@ -25,10 +25,6 @@
 
 @end
 
-@interface MochiGoValue ()
-@property (nonatomic, assign) GoRef ref;
-@end
-
 @implementation MochiGoValue {
     GoRef _ref;
 }

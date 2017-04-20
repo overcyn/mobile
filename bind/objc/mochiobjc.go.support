@@ -18,6 +18,7 @@ import "C"
 import (
     "runtime"
     "fmt"
+    "reflect"
 )
 
 type Value struct {
@@ -31,10 +32,7 @@ func MochiTest() C.int {
     s := appended.ToString()
     fmt.Println(s)
     
-    _ = Array([]*Value{ 
-        String("poo"),
-        String("blah"),
-    })
+    _ = Array(String("poo"), String("blah"))
     
     v := Float64(34238974)
     blah := v.ToFloat64()
@@ -45,9 +43,11 @@ func MochiTest() C.int {
 
 func NewValue(ref C.ObjcRef) *Value {
     v := &Value{ ref: int64(ref) }
-    runtime.SetFinalizer(v, func(a *Value) {
-        C.MochiUntrackObjc(a.Ref())  
-    })
+    if ref != 0 {
+        runtime.SetFinalizer(v, func(a *Value) {
+            C.MochiUntrackObjc(a.Ref())  
+        })
+    }
     return v
 }
 
@@ -57,6 +57,14 @@ func (v *Value)Ref() C.ObjcRef {
 
 func Root() *Value {
     return NewValue(C.MochiObjcRoot())
+}
+
+func Nil() *Value {
+    return NewValue(C.ObjcRef(0))
+}
+
+func (v *Value)IsNil() bool {
+    return v.ref == 0
 }
 
 func Bool(v bool) *Value {
@@ -105,7 +113,17 @@ func (v *Value)ToBytes() []byte {
     return nil
 }
 
-func Array(a []*Value) *Value {
+func Interface(v interface{}) *Value {
+    rv := reflect.ValueOf(v)
+    return NewValue(C.MochiObjcGoRef(mochiGoTrack(rv)))
+}
+
+func (v *Value)ToInterface() interface{} {
+    defer runtime.KeepAlive(v)
+    return mochiGoGet(C.MochiObjcToGoRef(v.Ref()))
+}
+
+func Array(a ...*Value) *Value {
     ref := C.MochiObjcArray()
     array := NewValue(ref);
     for _, i := range a {
@@ -125,16 +143,27 @@ func (v *Value)ToArray() []*Value {
     return slice
 }
 
-func (v *Value)Call(s string, args []*Value) *Value {
+func callSentinel() *Value {
+    return NewValue(C.MochiObjcCallSentinel())
+}
+
+// Call accepts `nil` in its variadic arguments
+func (v *Value)Call(s string, args ...*Value) *Value {
     defer runtime.KeepAlive(v)
     
-    argsRef := C.ObjcRef(0)
-    if len(args) > 0 {
-        array := Array(args)
-        defer runtime.KeepAlive(array)
-        argsRef = array.Ref()
+    // Can't pass nil through NSArray so put a sentinel in.
+    for i, elem := range args {
+        if elem == nil || elem.IsNil() {
+            args[i] = callSentinel()
+        }
     }
-    return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsRef))
+    
+    argsValue := Nil()
+    if len(args) > 0 {
+        argsValue := Array(args...)
+        defer runtime.KeepAlive(argsValue)
+    }
+    return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsValue.Ref()))
 }
 
 func cString(v string) C.CGoBuffer {
