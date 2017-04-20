@@ -239,22 +239,35 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 		return err
 	}
 
-	// Build platform binaries.
-	archs := map[string]string{}
-	for _, env := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
-		arch := getenv(env, "GOARCH")
-		env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
-		path := filepath.Join(tempDir, name+"-"+arch+".a")
-		if err = goBuild(mainPath, env, "-buildmode=c-archive", "-o", path); err != nil {
-			return fmt.Errorf("darwin-%s: %v", arch, err)
+	// Build platform binaries concurrently.
+	type archPath struct {
+		arch string
+		path string
+		err  error
+	}
+	archChan := make(chan archPath)
+	for _, i := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
+		go func(env []string) {
+			arch := getenv(env, "GOARCH")
+			env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
+			path := filepath.Join(tempDir, name+"-"+arch+".a")
+			err := goBuild(mainPath, env, "-buildmode=c-archive", "-o", path)
+			archChan <- archPath{arch, path, err}
+		}(i)
+	}
+	archs := []archPath{}
+	for i := 0; i < 3; i++ {
+		arch := <-archChan
+		if arch.err != nil {
+			return arch.err
 		}
-		archs[arch] = path
+		archs = append(archs, arch)
 	}
 
 	// Lipo to build fat binary.
 	cmd := exec.Command("xcrun", "lipo", "-create")
-	for arch, path := range archs {
-		cmd.Args = append(cmd.Args, "-arch", archClang(arch), path)
+	for _, i := range archs {
+		cmd.Args = append(cmd.Args, "-arch", archClang(i.arch), i.path)
 	}
 	cmd.Args = append(cmd.Args, "-o", binaryPath)
 	return runCmd(cmd)
