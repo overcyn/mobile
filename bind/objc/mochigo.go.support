@@ -22,6 +22,11 @@ import (
 
 var goRoot struct {
     root interface{}
+    types map[string]reflect.Type
+}
+
+func init() {
+    goRoot.types = map[string]reflect.Type{}
 }
 
 func GoRoot() interface{} {
@@ -30,6 +35,10 @@ func GoRoot() interface{} {
 
 func SetGoRoot(v interface{}) {
     goRoot.root = v
+}
+
+func RegisterType(str string, t reflect.Type) {
+    goRoot.types[str] = t
 }
 
 //export mochiGoRoot
@@ -84,8 +93,7 @@ func mochiGoToFloat64(v C.GoRef) C.double {
 
 //export mochiGoString
 func mochiGoString(v C.CGoBuffer) C.GoRef {
-    defer C.free(v.ptr)
-    str := string(C.GoBytes(v.ptr, C.int(v.len)))
+    str := goString(v)
     rv := reflect.ValueOf(str)
     return mochiGoTrack(rv)
 }
@@ -169,6 +177,14 @@ func mochiGoMapSet(m, key, value C.GoRef) {
     mochiGoGet(m).SetMapIndex(mochiGoGet(key), mochiGoGet(value))
 }
 
+//export mochiGoType
+func mochiGoType(v C.CGoBuffer) C.GoRef {
+    str := goString(v)
+    t := goRoot.types[str]
+    rv := reflect.New(t)
+    return mochiGoTrack(rv)
+}
+
 //export mochiGoIsNil
 func mochiGoIsNil(v C.GoRef) C.bool {
     return C.bool(mochiGoGet(v).IsNil())
@@ -203,8 +219,23 @@ func mochiGoField(v C.GoRef, name C.CGoBuffer) C.GoRef {
         kind = rv.Kind()
     }
     
-    rlt := rv.FieldByName(str)
-    return mochiGoTrack(rlt)
+    field := rv.FieldByName(str)
+    return mochiGoTrack(field)
+}
+
+//export mochiGoFieldSet
+func mochiGoFieldSet(v C.GoRef, name C.CGoBuffer, elem C.GoRef) {
+    rv := mochiGoGet(v)
+    str := goString(name)
+    
+    // Always underlying value.
+    kind := rv.Kind()
+    for kind == reflect.Ptr || kind == reflect.Interface {
+        rv = rv.Elem()
+        kind = rv.Kind()
+    }
+
+    rv.FieldByName(str).Set(mochiGoGet(elem))
 }
 
 var tracker struct {

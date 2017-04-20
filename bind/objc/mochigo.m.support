@@ -74,6 +74,11 @@
     return [self initWithGoRef:ref];
 }
 
+- (id)initWithType:(NSString *)v {
+    CGoBuffer buf = MochiNSStringToCGoBuffer(v);
+    return [self initWithGoRef:mochiGoType(buf)];
+}
+
 - (BOOL)toBool {
     return mochiGoToBool(_ref);
 }
@@ -137,8 +142,16 @@
     return [[MochiGoValue alloc] initWithGoRef:rlt];
 }
 
+- (void)setField:(NSString *)name value:(MochiGoValue *)value {
+    mochiGoFieldSet(_ref, MochiNSStringToCGoBuffer(name), value.ref);
+}
+
 - (MochiGoValue *)objectForKeyedSubscript:(NSString *)key {
     return [self field:key];
+}
+
+- (void)setObject:(MochiGoValue *)object forKeyedSubscript:(NSString *)key {
+    [self setField:key value:object];
 }
 
 - (void)dealloc {

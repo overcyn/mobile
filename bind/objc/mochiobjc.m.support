@@ -180,7 +180,6 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     id obj = MochiGetObjc(v);
     NSArray *args = MochiGetObjc(arguments);
     SEL sel = NSSelectorFromString(MochiCGoBufferToNSString(cstr));
-    
     NSMethodSignature *sig = [[obj class] instanceMethodSignatureForSelector:sel];
     
     // Build invocation.

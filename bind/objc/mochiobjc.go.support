@@ -120,7 +120,7 @@ func Interface(v interface{}) *Value {
 
 func (v *Value)ToInterface() interface{} {
     defer runtime.KeepAlive(v)
-    return mochiGoGet(C.MochiObjcToGoRef(v.Ref()))
+    return mochiGoGet(C.MochiObjcToGoRef(v.Ref())).Interface()
 }
 
 func Array(a ...*Value) *Value {
@@ -160,7 +160,7 @@ func (v *Value)Call(s string, args ...*Value) *Value {
     
     argsValue := Nil()
     if len(args) > 0 {
-        argsValue := Array(args...)
+        argsValue = Array(args...)
         defer runtime.KeepAlive(argsValue)
     }
     return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsValue.Ref()))
@@ -180,7 +180,7 @@ func cString(v string) C.CGoBuffer {
 }
 
 func goString(buf C.CGoBuffer) string {
+    defer C.free(buf.ptr)
     str := C.GoBytes(buf.ptr, C.int(buf.len))
-    C.free(buf.ptr)
     return string(str)
 }
