@@ -163,6 +163,7 @@ func (v *Value)Call(s string, args ...*Value) *Value {
         argsValue = Array(args...)
         defer runtime.KeepAlive(argsValue)
     }
+    
     return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsValue.Ref()))
 }
 
