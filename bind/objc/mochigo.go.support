@@ -200,10 +200,16 @@ func mochiGoElem(v C.GoRef) C.GoRef {
 func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
     rv := mochiGoGet(v)
     str := goString(name)
-    method := rv.MethodByName(str)
+    
+    var function reflect.Value
+    if str == "" {
+        function = rv
+    } else {
+        function = rv.MethodByName(str)
+    }
     argsRv := mochiGoGet(args).Interface().([]reflect.Value)
         
-    rlt := method.Call(argsRv)
+    rlt := function.Call(argsRv)
     return mochiGoTrack(reflect.ValueOf(rlt))
 }
 
