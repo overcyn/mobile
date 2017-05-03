@@ -190,6 +190,11 @@ func mochiGoIsNil(v C.GoRef) C.bool {
     return C.bool(mochiGoGet(v).IsNil())
 }
 
+//export mochiGoEqual
+func mochiGoEqual(a C.GoRef, b C.GoRef) C.bool {
+    return C.bool(mochiGoGet(a).Interface() == mochiGoGet(b).Interface())
+}
+
 //export mochiGoElem
 func mochiGoElem(v C.GoRef) C.GoRef {
     rv := mochiGoGet(v)

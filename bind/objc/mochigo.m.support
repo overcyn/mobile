@@ -123,6 +123,10 @@
     return mapTable;
 }
 
+- (BOOL)isEqual:(MochiGoValue *)value {
+    return mochiGoEqual(_ref, value.ref);
+}
+
 - (BOOL)isNil {
     return mochiGoIsNil(_ref);
 }
