@@ -189,7 +189,7 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     for (int i=0; i < args.count; i++) {
         id argObj = args[i];
         NSNumber *num = (NSNumber *)argObj;
-        const char *type = sig.methodReturnType;
+        const char *type = [sig getArgumentTypeAtIndex:i+2];
         
         if (strcmp(type, "c") == 0) {
             char arg = num.charValue;
@@ -244,7 +244,7 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
     
     // Invoke.
     [inv invoke];
-    
+        
     // Get return value.
     const char *type = [sig methodReturnType];
     id ret = nil;

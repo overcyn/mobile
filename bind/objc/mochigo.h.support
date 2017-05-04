@@ -9,6 +9,7 @@ GoRef mochiGoRoot();
 
 GoRef mochiGoBool(bool);
 bool mochiGoToBool(GoRef);
+GoRef mochiGoInt(int);
 GoRef mochiGoInt64(int64_t);
 int64_t mochiGoToInt64(GoRef);
 GoRef mochiGoUint64(uint64_t);
@@ -31,6 +32,7 @@ GoRef mochiGoMapGet(GoRef map, GoRef key);
 void mochiGoMapSet(GoRef map, GoRef key, GoRef value);
 
 GoRef mochiGoType(CGoBuffer); // Frees the buffer
+GoRef mochiGoFunc(CGoBuffer); // Frees the buffer
 
 bool mochiGoIsNil(GoRef);
 bool mochiGoEqual(GoRef, GoRef);
@@ -49,6 +51,7 @@ void mochiGoUntrack(GoRef);
 @interface MochiGoValue : NSObject
 - (id)initWithGoRef:(GoRef)ref;
 - (id)initWithBool:(BOOL)v;
+- (id)initWithInt:(int)v;
 - (id)initWithLongLong:(long long)v;
 - (id)initWithUnsignedLongLong:(unsigned long long)v;
 - (id)initWithDouble:(double)v;
@@ -56,6 +59,7 @@ void mochiGoUntrack(GoRef);
 - (id)initWithData:(NSData *)v;
 - (id)initWithArray:(NSArray<MochiGoValue *> *)v;
 - (id)initWithType:(NSString *)typeName;
+- (id)initWithFunc:(NSString *)funcName;
 @property (nonatomic, readonly) GoRef ref;
 - (BOOL)toBool;
 - (long long)toLongLong;

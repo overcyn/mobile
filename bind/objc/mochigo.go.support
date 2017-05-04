@@ -23,10 +23,12 @@ import (
 var goRoot struct {
     root interface{}
     types map[string]reflect.Type
+    funcs map[string]reflect.Value
 }
 
 func init() {
     goRoot.types = map[string]reflect.Type{}
+    goRoot.funcs = map[string]reflect.Value{}
 }
 
 func GoRoot() interface{} {
@@ -39,6 +41,10 @@ func SetGoRoot(v interface{}) {
 
 func RegisterType(str string, t reflect.Type) {
     goRoot.types[str] = t
+}
+
+func RegisterFunc(str string, f interface{}) {
+    goRoot.funcs[str] = reflect.ValueOf(f)
 }
 
 //export mochiGoRoot
@@ -56,6 +62,12 @@ func mochiGoBool(v C.bool) C.GoRef {
 //export mochiGoToBool 
 func mochiGoToBool(v C.GoRef) C.bool {
     return C.bool(mochiGoGet(v).Bool())
+}
+
+//export mochiGoInt
+func mochiGoInt(v C.int) C.GoRef {
+    rv := reflect.ValueOf(int(v))
+    return mochiGoTrack(rv)
 }
 
 //export mochiGoInt64
@@ -183,6 +195,13 @@ func mochiGoType(v C.CGoBuffer) C.GoRef {
     t := goRoot.types[str]
     rv := reflect.New(t)
     return mochiGoTrack(rv)
+}
+
+//export mochiGoFunc
+func mochiGoFunc(v C.CGoBuffer) C.GoRef {
+    str := goString(v)
+    f := goRoot.funcs[str]
+    return mochiGoTrack(f)
 }
 
 //export mochiGoIsNil
