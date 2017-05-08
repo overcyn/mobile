@@ -1,4 +1,4 @@
-package bridge
+package mochibridge
 
 // Go support functions for Objective-C. Note that this
 // file is copied into and compiled with the generated
@@ -17,28 +17,11 @@ import "C"
 
 import (
     "runtime"
-    "fmt"
     "reflect"
 )
 
 type Value struct {
     ref int64
-}
-
-//export MochiTest
-func MochiTest() C.int {
-    value := Root()
-    appended := value.Call("uppercaseString", nil)
-    s := appended.ToString()
-    fmt.Println(s)
-    
-    _ = Array(String("poo"), String("blah"))
-    
-    v := Float64(34238974)
-    blah := v.ToFloat64()
-    
-    runtime.GC()
-    return C.int(blah)
 }
 
 func NewValue(ref C.ObjcRef) *Value {

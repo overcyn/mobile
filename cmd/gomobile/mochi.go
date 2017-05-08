@@ -135,7 +135,7 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 	}
 
 	// Build the "mochi/bridge" dir
-	bridgeDir := filepath.Join(genDir, "src", "mochi", "bridge")
+	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "mochibridge")
 	if err := mkdir(bridgeDir); err != nil {
 		return err
 	}

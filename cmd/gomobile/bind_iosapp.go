@@ -233,7 +233,7 @@ var iosBindFile = []byte(`
 package main
 
 import (
-	_ "mochi/bridge"
+	_ "github.com/overcyn/mochibridge"
 	_ "%s"
 )
 
