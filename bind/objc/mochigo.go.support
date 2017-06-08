@@ -21,7 +21,6 @@ import (
 )
 
 var goRoot struct {
-    root interface{}
     types map[string]reflect.Type
     funcs map[string]reflect.Value
 }
@@ -31,26 +30,12 @@ func init() {
     goRoot.funcs = map[string]reflect.Value{}
 }
 
-func GoRoot() interface{} {
-    return goRoot.root
-}
-
-func SetGoRoot(v interface{}) {
-    goRoot.root = v
-}
-
 func RegisterType(str string, t reflect.Type) {
     goRoot.types[str] = t
 }
 
 func RegisterFunc(str string, f interface{}) {
     goRoot.funcs[str] = reflect.ValueOf(f)
-}
-
-//export mochiGoRoot
-func mochiGoRoot() C.GoRef {
-    rv := reflect.ValueOf(goRoot.root)
-    return mochiGoTrack(rv)
 }
 
 //export mochiGoBool

@@ -19,10 +19,6 @@
     return sBridge;
 }
 
-- (MochiGoValue *)root {
-    return [[MochiGoValue alloc] initWithGoRef:mochiGoRoot()];
-}
-
 @end
 
 @implementation MochiGoValue {
