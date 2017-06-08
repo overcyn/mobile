@@ -38,8 +38,8 @@ func (v *Value)Ref() C.ObjcRef {
     return C.ObjcRef(v.ref)
 }
 
-func Root() *Value {
-    return NewValue(C.MochiObjcRoot())
+func Bridge() *Value {
+    return NewValue(C.MochiObjcBridge_())
 }
 
 func Nil() *Value {
@@ -88,12 +88,15 @@ func (v *Value)ToString() string {
     return goString(buf)
 }
 
-func Bytes(v string) *Value {
-    return nil
+func Bytes(v []byte) *Value {
+    cbytes := cBytes(v)
+    return NewValue(C.MochiObjcBytes(cbytes))
 }
 
 func (v *Value)ToBytes() []byte {
-    return nil
+    defer runtime.KeepAlive(v)
+    buf := C.MochiObjcToBytes(v.Ref())
+    return goBytes(buf)
 }
 
 func Interface(v interface{}) *Value {
@@ -150,6 +153,19 @@ func (v *Value)Call(s string, args ...*Value) *Value {
     return NewValue(C.MochiObjcCall(v.Ref(), cString(s), argsValue.Ref()))
 }
 
+func cBytes(v []byte) C.CGoBuffer {
+    var cstr C.CGoBuffer
+    if len(v) == 0 {
+        cstr = C.CGoBuffer{}
+    } else {
+        cstr = C.CGoBuffer {
+            ptr: C.CBytes(v),
+            len: C.int64_t(len(v)),
+        }
+    }
+    return cstr
+}
+
 func cString(v string) C.CGoBuffer {
     var cstr C.CGoBuffer 
     if len(v) == 0 {
@@ -167,4 +183,9 @@ func goString(buf C.CGoBuffer) string {
     defer C.free(buf.ptr)
     str := C.GoBytes(buf.ptr, C.int(buf.len))
     return string(str)
+}
+
+func goBytes(buf C.CGoBuffer) []byte {
+    defer C.free(buf.ptr)
+    return C.GoBytes(buf.ptr, C.int(buf.len))
 }

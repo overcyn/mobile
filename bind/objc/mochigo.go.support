@@ -232,7 +232,7 @@ func mochiGoCall(v C.GoRef, name C.CGoBuffer, args C.GoRef) C.GoRef {
         function = rv.MethodByName(str)
     }
     argsRv := mochiGoGet(args).Interface().([]reflect.Value)
-        
+    
     rlt := function.Call(argsRv)
     return mochiGoTrack(reflect.ValueOf(rlt))
 }

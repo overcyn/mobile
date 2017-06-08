@@ -83,8 +83,8 @@
 
 @end
 
-ObjcRef MochiObjcRoot() {
-    id root = [[MochiObjcBridge sharedBridge] root];
+ObjcRef MochiObjcBridge_() {
+    id root = [MochiObjcBridge sharedBridge];
     return MochiTrackObjc(root);
 }
 
