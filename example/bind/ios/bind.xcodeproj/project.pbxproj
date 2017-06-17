@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		67608AC21EA7E0F000AE2EC7 /* Mochi.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67608AC11EA7E0F000AE2EC7 /* Mochi.framework */; };
+		67608AC21EA7E0F000AE2EC7 /* Matcha.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 67608AC11EA7E0F000AE2EC7 /* Matcha.framework */; };
 		EBA3E2861B681AFA00018449 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = EBA3E2851B681AFA00018449 /* main.m */; };
 		EBA3E2891B681AFA00018449 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = EBA3E2881B681AFA00018449 /* AppDelegate.m */; };
 		EBA3E28C1B681AFA00018449 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = EBA3E28B1B681AFA00018449 /* ViewController.m */; };
@@ -16,7 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		67608AC11EA7E0F000AE2EC7 /* Mochi.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Mochi.framework; sourceTree = "<group>"; };
+		67608AC11EA7E0F000AE2EC7 /* Matcha.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Matcha.framework; sourceTree = "<group>"; };
 		EBA3E2801B681AFA00018449 /* bind.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = bind.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBA3E2841B681AFA00018449 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EBA3E2851B681AFA00018449 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -33,7 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				67608AC21EA7E0F000AE2EC7 /* Mochi.framework in Frameworks */,
+				67608AC21EA7E0F000AE2EC7 /* Matcha.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -45,7 +45,7 @@
 			children = (
 				EBA3E2821B681AFA00018449 /* bind */,
 				EBA3E2811B681AFA00018449 /* Products */,
-				67608AC11EA7E0F000AE2EC7 /* Mochi.framework */,
+				67608AC11EA7E0F000AE2EC7 /* Matcha.framework */,
 			);
 			sourceTree = "<group>";
 		};

@@ -12,9 +12,9 @@ import (
 	"strings"
 )
 
-var cmdMochi = &command{
-	run:   runMochi,
-	Name:  "mochi",
+var cmdMatcha = &command{
+	run:   runMatcha,
+	Name:  "matcha",
 	Usage: "[-target android|ios] [-bootclasspath <path>] [-classpath <path>] [-o output] [build flags] [package]",
 	Short: "build a library for Android and iOS",
 	Long: `
@@ -59,7 +59,7 @@ are shared with the build command. For documentation, see 'go help build'.
 `,
 }
 
-func runMochi(cmd *command) error {
+func runMatcha(cmd *command) error {
 	cleanup, err := buildEnvInit()
 	if err != nil {
 		return err
@@ -115,15 +115,15 @@ func runMochi(cmd *command) error {
 		return goAndroidBind(pkgs, targetArchs)
 	case "darwin":
 		// TODO: use targetArchs?
-		return mochiIOSBind(pkgs, cmd)
+		return matchaIOSBind(pkgs, cmd)
 	default:
 		return fmt.Errorf(`invalid -target=%q`, buildTarget)
 	}
 }
 
-func mochiIOSBind(pkgs []*build.Package, command *command) error {
-	name := "mochi"
-	title := "Mochi"
+func matchaIOSBind(pkgs []*build.Package, command *command) error {
+	name := "matcha"
+	title := "Matcha"
 	tempDir := tmpdir
 	genDir := filepath.Join(tempDir, "gen")
 	frameworkDir := buildO
@@ -134,8 +134,8 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 		frameworkDir = title + ".framework"
 	}
 
-	// Build the "mochi/bridge" dir
-	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "mochibridge")
+	// Build the "matcha/bridge" dir
+	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "matchabridge")
 	if err := mkdir(bridgeDir); err != nil {
 		return err
 	}
@@ -157,22 +157,22 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 	if err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.h"), filepath.Join(objcPkg.Dir, "mochiobjc.h.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.h"), filepath.Join(objcPkg.Dir, "matchaobjc.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.m"), filepath.Join(objcPkg.Dir, "mochiobjc.m.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.m"), filepath.Join(objcPkg.Dir, "matchaobjc.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochiobjc.go"), filepath.Join(objcPkg.Dir, "mochiobjc.go.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.go"), filepath.Join(objcPkg.Dir, "matchaobjc.go.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochigo.h"), filepath.Join(objcPkg.Dir, "mochigo.h.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchago.h"), filepath.Join(objcPkg.Dir, "matchago.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochigo.m"), filepath.Join(objcPkg.Dir, "mochigo.m.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchago.m"), filepath.Join(objcPkg.Dir, "matchago.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "mochigo.go"), filepath.Join(objcPkg.Dir, "mochigo.go.support")); err != nil {
+	if err := copyFile(filepath.Join(bridgeDir, "matchago.go"), filepath.Join(objcPkg.Dir, "matchago.go.support")); err != nil {
 		return err
 	}
 
@@ -212,10 +212,10 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 	}
 
 	// Copy in headers.
-	if err = copyFile(filepath.Join(headersDir, "mochiobjc.h"), filepath.Join(bridgeDir, "mochiobjc.h")); err != nil {
+	if err = copyFile(filepath.Join(headersDir, "matchaobjc.h"), filepath.Join(bridgeDir, "matchaobjc.h")); err != nil {
 		return err
 	}
-	if err = copyFile(filepath.Join(headersDir, "mochigo.h"), filepath.Join(bridgeDir, "mochigo.h")); err != nil {
+	if err = copyFile(filepath.Join(headersDir, "matchago.h"), filepath.Join(bridgeDir, "matchago.h")); err != nil {
 		return err
 	}
 
@@ -230,7 +230,7 @@ func mochiIOSBind(pkgs []*build.Package, command *command) error {
 		Headers []string
 	}{
 		Module:  title,
-		Headers: []string{"mochiobjc.h", "mochigo.h"},
+		Headers: []string{"matchaobjc.h", "matchago.h"},
 	}
 	err = writeFile(filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
 		return iosModuleMapTmpl.Execute(w, mmVals)

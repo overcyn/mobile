@@ -233,7 +233,7 @@ var iosBindFile = []byte(`
 package main
 
 import (
-	_ "github.com/overcyn/mochibridge"
+	_ "github.com/overcyn/matchabridge"
 	_ "%s"
 )
 

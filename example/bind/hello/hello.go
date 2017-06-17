@@ -7,7 +7,7 @@ package hello
 
 import (
 	"fmt"
-	"mochi/bridge"
+	"matcha/bridge"
 )
 
 type testStruct struct {

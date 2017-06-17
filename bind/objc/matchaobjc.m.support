@@ -2,33 +2,33 @@
 #include <stdint.h>
 #include <string.h>
 #import <Foundation/Foundation.h>
-#include "mochiobjc.h"
-#include "mochigo.h"
+#include "matchaobjc.h"
+#include "matchago.h"
 
-@implementation MochiObjcBridge
+@implementation MatchaObjcBridge
 + (id)sharedBridge {
-    static MochiObjcBridge *sBridge = nil;
+    static MatchaObjcBridge *sBridge = nil;
     static dispatch_once_t sOnce;
     dispatch_once (&sOnce, ^{
-        sBridge = [[MochiObjcBridge alloc] init];
+        sBridge = [[MatchaObjcBridge alloc] init];
     });
     return sBridge;
 }
 @end
 
-@interface MochiTracker : NSObject {
+@interface MatchaTracker : NSObject {
     NSMapTable *_mapTable;
     int64_t _maxKey;
 }
 @end
 
-@implementation MochiTracker
+@implementation MatchaTracker
 
-+ (MochiTracker *)sharedTracker {
-    static MochiTracker *sTracker = nil;
++ (MatchaTracker *)sharedTracker {
+    static MatchaTracker *sTracker = nil;
     static dispatch_once_t sOnce;
     dispatch_once (&sOnce, ^{
-        sTracker = [[MochiTracker alloc] init];
+        sTracker = [[MatchaTracker alloc] init];
     });
     return sTracker;
 }
@@ -83,103 +83,103 @@
 
 @end
 
-ObjcRef MochiObjcBridge_() {
-    id root = [MochiObjcBridge sharedBridge];
-    return MochiTrackObjc(root);
+ObjcRef MatchaObjcBridge_() {
+    id root = [MatchaObjcBridge sharedBridge];
+    return MatchaTrackObjc(root);
 }
 
-ObjcRef MochiObjcBool(bool v) {
-    return MochiTrackObjc(@(v));
+ObjcRef MatchaObjcBool(bool v) {
+    return MatchaTrackObjc(@(v));
 }
 
-bool MochiObjcToBool(ObjcRef v) {
-    NSNumber *val = MochiGetObjc(v);
+bool MatchaObjcToBool(ObjcRef v) {
+    NSNumber *val = MatchaGetObjc(v);
     return val.boolValue;
 }
 
-ObjcRef MochiObjcInt64(int64_t v) {
-    return MochiTrackObjc(@(v));
+ObjcRef MatchaObjcInt64(int64_t v) {
+    return MatchaTrackObjc(@(v));
 }
 
-int64_t MochiObjcToInt64(ObjcRef v) {
-    NSNumber *val = MochiGetObjc(v);
+int64_t MatchaObjcToInt64(ObjcRef v) {
+    NSNumber *val = MatchaGetObjc(v);
     return val.longLongValue;
 }
 
-ObjcRef MochiObjcFloat64(double v) {
-    return MochiTrackObjc(@(v));
+ObjcRef MatchaObjcFloat64(double v) {
+    return MatchaTrackObjc(@(v));
 }
 
-double MochiObjcToFloat64(ObjcRef v) {
-    NSNumber *val = MochiGetObjc(v);
+double MatchaObjcToFloat64(ObjcRef v) {
+    NSNumber *val = MatchaGetObjc(v);
     return val.doubleValue;
 }
 
-ObjcRef MochiObjcGoRef(GoRef v) {
-    return MochiTrackObjc([[MochiGoValue alloc] initWithGoRef:v]);
+ObjcRef MatchaObjcGoRef(GoRef v) {
+    return MatchaTrackObjc([[MatchaGoValue alloc] initWithGoRef:v]);
 }
 
-GoRef MochiObjcToGoRef(ObjcRef v) {
-    MochiGoValue *val = MochiGetObjc(v);
+GoRef MatchaObjcToGoRef(ObjcRef v) {
+    MatchaGoValue *val = MatchaGetObjc(v);
     return val.ref;
 }
 
-ObjcRef MochiObjcString(CGoBuffer cstr) {
-    return MochiTrackObjc(MochiCGoBufferToNSString(cstr));
+ObjcRef MatchaObjcString(CGoBuffer cstr) {
+    return MatchaTrackObjc(MatchaCGoBufferToNSString(cstr));
 }
 
-CGoBuffer MochiObjcToString(ObjcRef v) {
-    return MochiNSStringToCGoBuffer(MochiGetObjc(v));
+CGoBuffer MatchaObjcToString(ObjcRef v) {
+    return MatchaNSStringToCGoBuffer(MatchaGetObjc(v));
 }
 
-ObjcRef MochiObjcBytes(CGoBuffer buf) {
-    return MochiTrackObjc(MochiCGoBufferToNSData(buf));
+ObjcRef MatchaObjcBytes(CGoBuffer buf) {
+    return MatchaTrackObjc(MatchaCGoBufferToNSData(buf));
 }
 
-CGoBuffer MochiObjcToBytes(ObjcRef v) {
-    NSData *data = MochiGetObjc(v);
-    return MochiNSDataToCGoBuffer(data);
+CGoBuffer MatchaObjcToBytes(ObjcRef v) {
+    NSData *data = MatchaGetObjc(v);
+    return MatchaNSDataToCGoBuffer(data);
 }
 
 // Array
 
-ObjcRef MochiObjcArray() {
+ObjcRef MatchaObjcArray() {
     NSMutableArray *val = [NSMutableArray array];
-    return MochiTrackObjc(val);
+    return MatchaTrackObjc(val);
 }
 
-int64_t MochiObjcArrayLen(ObjcRef v) {
-    NSMutableArray *val = MochiGetObjc(v);
+int64_t MatchaObjcArrayLen(ObjcRef v) {
+    NSMutableArray *val = MatchaGetObjc(v);
     return val.count;
 }
 
-void MochiObjcArrayAppend(ObjcRef v, ObjcRef elem) {
-    id obj = MochiGetObjc(elem);
-    NSMutableArray *val = MochiGetObjc(v);
+void MatchaObjcArrayAppend(ObjcRef v, ObjcRef elem) {
+    id obj = MatchaGetObjc(elem);
+    NSMutableArray *val = MatchaGetObjc(v);
     [val addObject:obj];
 }
 
-ObjcRef MochiObjcArrayAt(ObjcRef v, int64_t index) {
-    NSMutableArray *val = MochiGetObjc(v);
-    return MochiTrackObjc(val[index]);
+ObjcRef MatchaObjcArrayAt(ObjcRef v, int64_t index) {
+    NSMutableArray *val = MatchaGetObjc(v);
+    return MatchaTrackObjc(val[index]);
 }
 
 // Call
 
-@interface _MochiObjcCallSentinel : NSObject
+@interface _MatchaObjcCallSentinel : NSObject
 @end
-@implementation _MochiObjcCallSentinel
+@implementation _MatchaObjcCallSentinel
 @end
 
-ObjcRef MochiObjcCallSentinel() {
-    _MochiObjcCallSentinel *sentinel = [[_MochiObjcCallSentinel alloc] init];
-    return MochiTrackObjc(sentinel);
+ObjcRef MatchaObjcCallSentinel() {
+    _MatchaObjcCallSentinel *sentinel = [[_MatchaObjcCallSentinel alloc] init];
+    return MatchaTrackObjc(sentinel);
 }
 
-ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
-    id obj = MochiGetObjc(v);
-    NSArray *args = MochiGetObjc(arguments);
-    SEL sel = NSSelectorFromString(MochiCGoBufferToNSString(cstr));
+ObjcRef MatchaObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
+    id obj = MatchaGetObjc(v);
+    NSArray *args = MatchaGetObjc(arguments);
+    SEL sel = NSSelectorFromString(MatchaCGoBufferToNSString(cstr));
     NSMethodSignature *sig = [[obj class] instanceMethodSignatureForSelector:sel];
     
     // Build invocation.
@@ -231,14 +231,14 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
             bool arg = num.boolValue;
             [inv setArgument:&arg atIndex:i+2];
         } else if (strcmp(type, "@") == 0) {
-            if ([argObj isKindOfClass:[_MochiObjcCallSentinel class]]) {
+            if ([argObj isKindOfClass:[_MatchaObjcCallSentinel class]]) {
                 id nilObject = nil;
                 [inv setArgument:&nilObject atIndex:i+2];
             } else {
                 [inv setArgument:&argObj atIndex:i+2];
             }
         } else {
-            @throw @"MochiObjcCall: Unsupported argument type";
+            @throw @"MatchaObjcCall: Unsupported argument type";
         }
     }
     
@@ -263,35 +263,35 @@ ObjcRef MochiObjcCall(ObjcRef v, CGoBuffer cstr, ObjcRef arguments) {
         [inv getReturnValue:&retValue];
         ret = (__bridge id)retValue;
     } else {
-        @throw @"MochiObjcCall: Unsupported return type";
+        @throw @"MatchaObjcCall: Unsupported return type";
     }
-    return MochiTrackObjc(ret);
+    return MatchaTrackObjc(ret);
 }
 
 // Tracker
 
-ObjcRef MochiTrackObjc(id value) {
-    return [[MochiTracker sharedTracker] track:value];
+ObjcRef MatchaTrackObjc(id value) {
+    return [[MatchaTracker sharedTracker] track:value];
 }
 
-id MochiGetObjc(ObjcRef key) {
-    return [[MochiTracker sharedTracker] get:key];
+id MatchaGetObjc(ObjcRef key) {
+    return [[MatchaTracker sharedTracker] get:key];
 }
 
-void MochiUntrackObjc(ObjcRef key) {
-    [[MochiTracker sharedTracker] untrack:key];
+void MatchaUntrackObjc(ObjcRef key) {
+    [[MatchaTracker sharedTracker] untrack:key];
 }
 
 // Utilities
 
-NSString *MochiCGoBufferToNSString(CGoBuffer cstr) {
+NSString *MatchaCGoBufferToNSString(CGoBuffer cstr) {
     if (cstr.len == 0) {
         return @"";
     }
     return [[NSString alloc] initWithBytesNoCopy:cstr.ptr length:cstr.len encoding:NSUTF8StringEncoding freeWhenDone:YES];
 }
 
-CGoBuffer MochiNSStringToCGoBuffer(NSString *str) {
+CGoBuffer MatchaNSStringToCGoBuffer(NSString *str) {
     int len = [str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
     if (len == 0) {
         return (CGoBuffer){0};
@@ -307,14 +307,14 @@ CGoBuffer MochiNSStringToCGoBuffer(NSString *str) {
     return cstr;
 }
 
-NSData *MochiCGoBufferToNSData(CGoBuffer buf) {
+NSData *MatchaCGoBufferToNSData(CGoBuffer buf) {
     if (buf.len == 0) {
         return [NSData data];
     }
     return [[NSData alloc] initWithBytesNoCopy:buf.ptr length:buf.len freeWhenDone:YES];
 }
 
-CGoBuffer MochiNSDataToCGoBuffer(NSData *data) {
+CGoBuffer MatchaNSDataToCGoBuffer(NSData *data) {
     int len = [data length];
     if (len == 0) {
         return (CGoBuffer){0};

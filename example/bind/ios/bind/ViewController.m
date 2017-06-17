@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 #import "ViewController.h"
-@import Mochi;
+@import Matcha;
 
 @interface ViewController ()
 @end
@@ -15,14 +15,14 @@
 - (void)loadView {
     [super loadView];
     
-    [MochiObjcBridge sharedBridge].root = @"Fupo";
-    MochiGoValue *goRoot = [MochiGoBridge sharedBridge].root;
+    [MatchaObjcBridge sharedBridge].root = @"Fupo";
+    MatchaGoValue *goRoot = [MatchaGoBridge sharedBridge].root;
     NSLog(@"%@", [goRoot call:@"TestMethod" args:nil][0].toString);
     NSLog(@"%@", [goRoot field:@"blah"].toString);
     
     textLabel.text = [goRoot field:@"blah"].toString;
     
-    int test = MochiTest();
+    int test = MatchaTest();
     NSLog(@"%@", @(test));
 }
 
