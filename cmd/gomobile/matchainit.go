@@ -154,7 +154,7 @@ func runInitMatcha(cmd *command) error {
 	// 	}
 	// }
 	// ndkRoot = initNDK
-	if err := envInit(); err != nil {
+	if err := matchaEnvInit(); err != nil {
 		return err
 	}
 
@@ -187,7 +187,7 @@ func runInitMatcha(cmd *command) error {
 	}
 
 	// Install iOS libraries
-	if err := matchaInstallDarwin(); err != nil {
+	if err := matchaInstallDarwin(gomobilepath); err != nil {
 		return err
 	}
 
@@ -211,18 +211,242 @@ func runInitMatcha(cmd *command) error {
 	return nil
 }
 
-func matchaInstallDarwin() error {
+func matchaEnvInit() (err error) {
+	// TODO(crawshaw): cwd only used by ctx.Import, which can take "."
+	cwd, err = os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	// Setup the cross-compiler environments.
+
+	if ndkRoot != "" {
+		androidEnv = make(map[string][]string)
+		for arch, toolchain := range ndk {
+			// Emulate the flags in the clang wrapper scripts generated
+			// by make_standalone_toolchain.py
+			s := strings.SplitN(toolchain.toolPrefix, "-", 3)
+			a, os, env := s[0], s[1], s[2]
+			if a == "arm" {
+				a = "armv7a"
+			}
+			target := strings.Join([]string{a, "none", os, env}, "-")
+			sysroot := filepath.Join(ndkRoot, "platforms", toolchain.platform, "arch-"+toolchain.arch)
+			gcctoolchain := filepath.Join(ndkRoot, "toolchains", toolchain.gcc, "prebuilt", archNDK())
+			flags := fmt.Sprintf("-target %s --sysroot %s -gcc-toolchain %s", target, sysroot, gcctoolchain)
+			cflags := fmt.Sprintf("%s -I%s/include", flags, gomobilepath)
+			ldflags := fmt.Sprintf("%s -L%s/usr/lib -L%s/lib/%s", flags, sysroot, gomobilepath, arch)
+			androidEnv[arch] = []string{
+				"GOOS=android",
+				"GOARCH=" + arch,
+				"CC=" + toolchain.Path("clang"),
+				"CXX=" + toolchain.Path("clang++"),
+				"CGO_CFLAGS=" + cflags,
+				"CGO_CPPFLAGS=" + cflags,
+				"CGO_LDFLAGS=" + ldflags,
+				"CGO_ENABLED=1",
+			}
+			if arch == "arm" {
+				androidEnv[arch] = append(androidEnv[arch], "GOARM=7")
+			}
+		}
+	}
+
 	if !matchaXcodeAvailable() {
 		return nil
 	}
-	if err := matchaInstallPkg("std", darwinArmEnv, gomobilepath); err != nil {
+
+	clang, cflags, err := matchaEnvClang("iphoneos")
+	if err != nil {
 		return err
 	}
-	if err := matchaInstallPkg("std", darwinArm64Env, gomobilepath); err != nil {
+	darwinArmEnv = []string{
+		"GOOS=darwin",
+		"GOARCH=arm",
+		"GOARM=7",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm"),
+		"CGO_LDFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm"),
+		"CGO_ENABLED=1",
+	}
+	darwinArmNM = "nm"
+	darwinArm64Env = []string{
+		"GOOS=darwin",
+		"GOARCH=arm64",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm64"),
+		"CGO_LDFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm64"),
+		"CGO_ENABLED=1",
+	}
+
+	clang, cflags, err = matchaEnvClang("iphonesimulator")
+	if err != nil {
 		return err
 	}
+	darwin386Env = []string{
+		"GOOS=darwin",
+		"GOARCH=386",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch " + matchaArchClang("386"),
+		"CGO_LDFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch " + matchaArchClang("386"),
+		"CGO_ENABLED=1",
+	}
+	darwinAmd64Env = []string{
+		"GOOS=darwin",
+		"GOARCH=amd64",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch x86_64",
+		"CGO_LDFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch x86_64",
+		"CGO_ENABLED=1",
+	}
+
+	return nil
+}
+
+func matchaDarwinArmEnv() ([]string, error) {
+	if !matchaXcodeAvailable() {
+		return nil, errors.New("Xcode not available")
+	}
+	clang, cflags, err := matchaEnvClang("iphoneos")
+	if err != nil {
+		return nil, err
+	}
+	return []string{
+		"GOOS=darwin",
+		"GOARCH=arm",
+		"GOARM=7",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm"),
+		"CGO_LDFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm"),
+		"CGO_ENABLED=1",
+	}, nil
+}
+
+func matchaDarwinArm64Env() ([]string, error) {
+	if !matchaXcodeAvailable() {
+		return nil, errors.New("Xcode not available")
+	}
+	clang, cflags, err := matchaEnvClang("iphoneos")
+	if err != nil {
+		return nil, err
+	}
+	return []string{
+		"GOOS=darwin",
+		"GOARCH=arm64",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm64"),
+		"CGO_LDFLAGS=" + cflags + " -miphoneos-version-min=6.1 -arch " + matchaArchClang("arm64"),
+		"CGO_ENABLED=1",
+	}, nil
+}
+
+func matchaDarwin386Env() ([]string, error) {
+	if !matchaXcodeAvailable() {
+		return nil, errors.New("Xcode not available")
+	}
+	clang, cflags, err := matchaEnvClang("iphonesimulator")
+	if err != nil {
+		return nil, err
+	}
+	return []string{
+		"GOOS=darwin",
+		"GOARCH=386",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch " + matchaArchClang("386"),
+		"CGO_LDFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch " + matchaArchClang("386"),
+		"CGO_ENABLED=1",
+	}, nil
+}
+
+func matchaDarwinAmd64Env() ([]string, error) {
+	if !matchaXcodeAvailable() {
+		return nil, errors.New("Xcode not available")
+	}
+	clang, cflags, err := matchaEnvClang("iphonesimulator")
+	if err != nil {
+		return nil, err
+	}
+	return []string{
+		"GOOS=darwin",
+		"GOARCH=amd64",
+		"CC=" + clang,
+		"CXX=" + clang,
+		"CGO_CFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch x86_64",
+		"CGO_LDFLAGS=" + cflags + " -mios-simulator-version-min=6.1 -arch x86_64",
+		"CGO_ENABLED=1",
+	}, nil
+}
+
+func matchaArchClang(goarch string) string {
+	switch goarch {
+	case "arm":
+		return "armv7"
+	case "arm64":
+		return "arm64"
+	case "386":
+		return "i386"
+	case "amd64":
+		return "x86_64"
+	default:
+		panic(fmt.Sprintf("unknown GOARCH: %q", goarch))
+	}
+}
+
+func matchaEnvClang(sdkName string) (clang, cflags string, err error) {
+	if buildN {
+		return "clang-" + sdkName, "-isysroot=" + sdkName, nil
+	}
+	cmd := exec.Command("xcrun", "--sdk", sdkName, "--find", "clang")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", "", fmt.Errorf("xcrun --find: %v\n%s", err, out)
+	}
+	clang = strings.TrimSpace(string(out))
+
+	cmd = exec.Command("xcrun", "--sdk", sdkName, "--show-sdk-path")
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return "", "", fmt.Errorf("xcrun --show-sdk-path: %v\n%s", err, out)
+	}
+	sdk := strings.TrimSpace(string(out))
+
+	return clang, "-isysroot " + sdk, nil
+}
+
+func matchaInstallDarwin(matchaGoMobilePath string) error {
+	var env []string
+	var err error
+
+	if !matchaXcodeAvailable() {
+		return nil
+	}
+
+	if env, err = matchaDarwinArmEnv(); err != nil {
+		return err
+	}
+	if err := matchaInstallPkg("std", darwinArmEnv, matchaGoMobilePath); err != nil {
+		return err
+	}
+
+	if env, err = matchaDarwinArm64Env(); err != nil {
+		return err
+	}
+	if err := matchaInstallPkg("std", env, matchaGoMobilePath); err != nil {
+		return err
+	}
+
 	// TODO(crawshaw): darwin/386 for the iOS simulator?
-	if err := matchaInstallPkg("std", darwinAmd64Env, gomobilepath, "-tags=ios"); err != nil {
+	if env, err = matchaDarwinAmd64Env(); err != nil {
+		return err
+	}
+	if err := matchaInstallPkg("std", env, matchaGoMobilePath, "-tags=ios"); err != nil {
 		return err
 	}
 	return nil
