@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -179,10 +178,10 @@ func runInit(cmd *command) error {
 		return err
 	}
 
-	// Install OpenAl
-	if err := installOpenAL(gomobilepath); err != nil {
-		return err
-	}
+	// // Install OpenAl
+	// if err := installOpenAL(gomobilepath); err != nil {
+	// 	return err
+	// }
 
 	// Write Go Version to $GOPATH/pkg/gomobile/version
 	if buildX || buildN {
@@ -200,120 +199,120 @@ func runInit(cmd *command) error {
 	return nil
 }
 
-func installOpenAL(gomobilepath string) error {
-	if ndkRoot == "" || initOpenAL == "" {
-		return nil
-	}
-	var cmake string
-	if buildN {
-		cmake = "cmake"
-	} else {
-		sdkRoot := os.Getenv("ANDROID_HOME")
-		if sdkRoot == "" {
-			return nil
-		}
-		var err error
-		cmake, err = exec.LookPath("cmake")
-		if err != nil {
-			cmakePath := filepath.Join(sdkRoot, "cmake")
-			cmakeDir, err := os.Open(cmakePath)
-			if err != nil {
-				if os.IsNotExist(err) {
-					// Skip OpenAL install if the cmake package is not installed.
-					return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
-				}
-				return err
-			}
-			defer cmakeDir.Close()
-			// There might be multiple versions of CMake installed. Use any one for now.
-			cmakeVers, err := cmakeDir.Readdirnames(1)
-			if err != nil || len(cmakeVers) == 0 {
-				return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
-			}
-			cmake = filepath.Join(cmakePath, cmakeVers[0], "bin", "cmake")
-		}
-	}
-	var alTmpDir string
-	if buildN {
-		alTmpDir = filepath.Join(gomobilepath, "work")
-	} else {
-		var err error
-		alTmpDir, err = ioutil.TempDir(gomobilepath, "openal-release-")
-		if err != nil {
-			return err
-		}
-		defer removeAll(alTmpDir)
-	}
+// func installOpenAL(gomobilepath string) error {
+// 	if ndkRoot == "" || initOpenAL == "" {
+// 		return nil
+// 	}
+// 	var cmake string
+// 	if buildN {
+// 		cmake = "cmake"
+// 	} else {
+// 		sdkRoot := os.Getenv("ANDROID_HOME")
+// 		if sdkRoot == "" {
+// 			return nil
+// 		}
+// 		var err error
+// 		cmake, err = exec.LookPath("cmake")
+// 		if err != nil {
+// 			cmakePath := filepath.Join(sdkRoot, "cmake")
+// 			cmakeDir, err := os.Open(cmakePath)
+// 			if err != nil {
+// 				if os.IsNotExist(err) {
+// 					// Skip OpenAL install if the cmake package is not installed.
+// 					return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
+// 				}
+// 				return err
+// 			}
+// 			defer cmakeDir.Close()
+// 			// There might be multiple versions of CMake installed. Use any one for now.
+// 			cmakeVers, err := cmakeDir.Readdirnames(1)
+// 			if err != nil || len(cmakeVers) == 0 {
+// 				return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
+// 			}
+// 			cmake = filepath.Join(cmakePath, cmakeVers[0], "bin", "cmake")
+// 		}
+// 	}
+// 	var alTmpDir string
+// 	if buildN {
+// 		alTmpDir = filepath.Join(gomobilepath, "work")
+// 	} else {
+// 		var err error
+// 		alTmpDir, err = ioutil.TempDir(gomobilepath, "openal-release-")
+// 		if err != nil {
+// 			return err
+// 		}
+// 		defer removeAll(alTmpDir)
+// 	}
 
-	for _, f := range []string{"include/AL/al.h", "include/AL/alc.h"} {
-		dst := filepath.Join(gomobilepath, f)
-		src := filepath.Join(initOpenAL, f)
-		if err := copyFile(dst, src); err != nil {
-			return err
-		}
-	}
+// 	for _, f := range []string{"include/AL/al.h", "include/AL/alc.h"} {
+// 		dst := filepath.Join(gomobilepath, f)
+// 		src := filepath.Join(initOpenAL, f)
+// 		if err := copyFile(dst, src); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	toolsDir := filepath.Join(ndkRoot, "prebuilt", archNDK(), "bin")
-	py27 := filepath.Join(toolsDir, "python2.7")
-	var make string
-	if !buildN && runtime.GOOS == "windows" {
-		var err error
-		make, err = exec.LookPath("nmake")
-		if err != nil {
-			return nil
-		}
-	} else {
-		make = filepath.Join(toolsDir, "make")
-	}
-	for _, arch := range archs {
-		t := ndk[arch]
-		abi := t.arch
-		if abi == "arm" {
-			abi = "armeabi"
-		}
-		// Split android-XX to get the api version.
-		platform := strings.SplitN(t.platform, "-", 2)
-		api := platform[1]
-		buildDir := alTmpDir + "/build/" + abi
-		toolchain := buildDir + "/toolchain"
-		// standalone ndk toolchains make openal-soft's build config easier.
-		cmd := exec.Command(py27,
-			"build/tools/make_standalone_toolchain.py",
-			"--arch="+t.arch,
-			"--api="+api,
-			"--install-dir="+toolchain)
-		cmd.Dir = ndkRoot
-		if err := runCmd(cmd); err != nil {
-			return err
-		}
+// 	toolsDir := filepath.Join(ndkRoot, "prebuilt", archNDK(), "bin")
+// 	py27 := filepath.Join(toolsDir, "python2.7")
+// 	var make string
+// 	if !buildN && runtime.GOOS == "windows" {
+// 		var err error
+// 		make, err = exec.LookPath("nmake")
+// 		if err != nil {
+// 			return nil
+// 		}
+// 	} else {
+// 		make = filepath.Join(toolsDir, "make")
+// 	}
+// 	for _, arch := range archs {
+// 		t := ndk[arch]
+// 		abi := t.arch
+// 		if abi == "arm" {
+// 			abi = "armeabi"
+// 		}
+// 		// Split android-XX to get the api version.
+// 		platform := strings.SplitN(t.platform, "-", 2)
+// 		api := platform[1]
+// 		buildDir := alTmpDir + "/build/" + abi
+// 		toolchain := buildDir + "/toolchain"
+// 		// standalone ndk toolchains make openal-soft's build config easier.
+// 		cmd := exec.Command(py27,
+// 			"build/tools/make_standalone_toolchain.py",
+// 			"--arch="+t.arch,
+// 			"--api="+api,
+// 			"--install-dir="+toolchain)
+// 		cmd.Dir = ndkRoot
+// 		if err := runCmd(cmd); err != nil {
+// 			return err
+// 		}
 
-		cmd = exec.Command(cmake,
-			initOpenAL,
-			"-DCMAKE_TOOLCHAIN_FILE="+initOpenAL+"/XCompile-Android.txt",
-			"-DHOST="+t.toolPrefix)
-		cmd.Dir = buildDir
-		orgPath := os.Getenv("PATH")
-		if !buildN {
-			cmd.Env = []string{"PATH=" + toolchain + "/bin" + string(os.PathListSeparator) + orgPath}
-		}
-		if err := runCmd(cmd); err != nil {
-			return err
-		}
+// 		cmd = exec.Command(cmake,
+// 			initOpenAL,
+// 			"-DCMAKE_TOOLCHAIN_FILE="+initOpenAL+"/XCompile-Android.txt",
+// 			"-DHOST="+t.toolPrefix)
+// 		cmd.Dir = buildDir
+// 		orgPath := os.Getenv("PATH")
+// 		if !buildN {
+// 			cmd.Env = []string{"PATH=" + toolchain + "/bin" + string(os.PathListSeparator) + orgPath}
+// 		}
+// 		if err := runCmd(cmd); err != nil {
+// 			return err
+// 		}
 
-		cmd = exec.Command(make)
-		cmd.Dir = buildDir
-		if err := runCmd(cmd); err != nil {
-			return err
-		}
+// 		cmd = exec.Command(make)
+// 		cmd.Dir = buildDir
+// 		if err := runCmd(cmd); err != nil {
+// 			return err
+// 		}
 
-		dst := filepath.Join(gomobilepath, "lib", t.abi, "libopenal.so")
-		src := filepath.Join(alTmpDir, "build", abi, "libopenal.so")
-		if err := copyFile(dst, src); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// 		dst := filepath.Join(gomobilepath, "lib", t.abi, "libopenal.so")
+// 		src := filepath.Join(alTmpDir, "build", abi, "libopenal.so")
+// 		if err := copyFile(dst, src); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }
 
 var commonPkgs = []string{
 	"golang.org/x/mobile/gl",

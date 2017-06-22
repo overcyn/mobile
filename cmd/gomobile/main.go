@@ -163,6 +163,7 @@ func helpDocumentation(path string) {
 var commands = []*command{
 	// TODO(crawshaw): cmdRun
 	cmdMatcha,
+	cmdMatchaInit,
 	cmdBind,
 	cmdBuild,
 	cmdClean,
