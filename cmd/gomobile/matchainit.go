@@ -1,13 +1,34 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+func matchaGoVersion() ([]byte, error) {
+	gobin, err := exec.LookPath("go")
+	if err != nil {
+		return nil, errors.New("go not found")
+	}
+	goVer, err := exec.Command(gobin, "version").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("'go version' failed: %v, %s", err, goVer)
+	}
+	switch {
+	case bytes.HasPrefix(goVer, []byte("go version go1.4")),
+		bytes.HasPrefix(goVer, []byte("go version go1.5")),
+		bytes.HasPrefix(goVer, []byte("go version go1.6")):
+		return nil, errors.New("Go 1.7 or newer is required")
+	}
+	return goVer, nil
+}
 
 // var (
 //     goos    = runtime.GOOS
@@ -54,7 +75,7 @@ and gomobile install.
 
 func runInitMatcha(cmd *command) error {
 	// Get GOPATH
-	gopaths := filepath.SplitList(goEnv("GOPATH"))
+	gopaths := filepath.SplitList(matchaGoEnv("GOPATH"))
 	if len(gopaths) == 0 {
 		return fmt.Errorf("GOPATH is not set")
 	}
@@ -65,7 +86,7 @@ func runInitMatcha(cmd *command) error {
 	if buildX || buildN {
 		fmt.Fprintln(xout, "GOMOBILE="+gomobilepath)
 	}
-	removeAll(gomobilepath)
+	matchaRemoveAll(gomobilepath)
 
 	// Make $GOPATH/pkg/gomobile
 	if err := mkdir(gomobilepath); err != nil {
@@ -90,7 +111,7 @@ func runInitMatcha(cmd *command) error {
 		// 	fmt.Printf("WORK=%s\n", tmpdir)
 		// 	return
 		// }
-		removeAll(tmpdir)
+		matchaRemoveAll(tmpdir)
 	}()
 
 	// // Build NDK stuff?
@@ -160,7 +181,7 @@ func runInitMatcha(cmd *command) error {
 	androidArgs := []string{"-gcflags=-shared", "-ldflags=-shared"}
 	for _, arch := range archs {
 		env := androidEnv[arch]
-		if err := matchaInstallStd(env, androidArgs...); err != nil {
+		if err := matchaInstallPkg("std", env, gomobilepath, androidArgs...); err != nil {
 			return err
 		}
 	}
@@ -170,17 +191,16 @@ func runInitMatcha(cmd *command) error {
 		return err
 	}
 
-	// // Install OpenAl
-	// if err := installOpenAL(gomobilepath); err != nil {
-	//  return err
-	// }
-
 	// Write Go Version to $GOPATH/pkg/gomobile/version
 	if buildX || buildN {
-		printcmd("go version > %s", verpath)
+		matchaprintcmd("go version > %s", verpath)
 	}
 	if !buildN {
-		if err := ioutil.WriteFile(verpath, goVersionOut, 0644); err != nil {
+		goversion, err := matchaGoVersion()
+		if err != nil {
+			return nil
+		}
+		if err := ioutil.WriteFile(verpath, goversion, 0644); err != nil {
 			return err
 		}
 	}
@@ -191,150 +211,25 @@ func runInitMatcha(cmd *command) error {
 	return nil
 }
 
-// func installOpenAL(gomobilepath string) error {
-//  if ndkRoot == "" || initOpenAL == "" {
-//      return nil
-//  }
-//  var cmake string
-//  if buildN {
-//      cmake = "cmake"
-//  } else {
-//      sdkRoot := os.Getenv("ANDROID_HOME")
-//      if sdkRoot == "" {
-//          return nil
-//      }
-//      var err error
-//      cmake, err = exec.LookPath("cmake")
-//      if err != nil {
-//          cmakePath := filepath.Join(sdkRoot, "cmake")
-//          cmakeDir, err := os.Open(cmakePath)
-//          if err != nil {
-//              if os.IsNotExist(err) {
-//                  // Skip OpenAL install if the cmake package is not installed.
-//                  return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
-//              }
-//              return err
-//          }
-//          defer cmakeDir.Close()
-//          // There might be multiple versions of CMake installed. Use any one for now.
-//          cmakeVers, err := cmakeDir.Readdirnames(1)
-//          if err != nil || len(cmakeVers) == 0 {
-//              return errors.New("cmake was not found in the PATH. Please install it through the Android SDK manager.")
-//          }
-//          cmake = filepath.Join(cmakePath, cmakeVers[0], "bin", "cmake")
-//      }
-//  }
-//  var alTmpDir string
-//  if buildN {
-//      alTmpDir = filepath.Join(gomobilepath, "work")
-//  } else {
-//      var err error
-//      alTmpDir, err = ioutil.TempDir(gomobilepath, "openal-release-")
-//      if err != nil {
-//          return err
-//      }
-//      defer removeAll(alTmpDir)
-//  }
-
-//  for _, f := range []string{"include/AL/al.h", "include/AL/alc.h"} {
-//      dst := filepath.Join(gomobilepath, f)
-//      src := filepath.Join(initOpenAL, f)
-//      if err := copyFile(dst, src); err != nil {
-//          return err
-//      }
-//  }
-
-//  toolsDir := filepath.Join(ndkRoot, "prebuilt", archNDK(), "bin")
-//  py27 := filepath.Join(toolsDir, "python2.7")
-//  var make string
-//  if !buildN && runtime.GOOS == "windows" {
-//      var err error
-//      make, err = exec.LookPath("nmake")
-//      if err != nil {
-//          return nil
-//      }
-//  } else {
-//      make = filepath.Join(toolsDir, "make")
-//  }
-//  for _, arch := range archs {
-//      t := ndk[arch]
-//      abi := t.arch
-//      if abi == "arm" {
-//          abi = "armeabi"
-//      }
-//      // Split android-XX to get the api version.
-//      platform := strings.SplitN(t.platform, "-", 2)
-//      api := platform[1]
-//      buildDir := alTmpDir + "/build/" + abi
-//      toolchain := buildDir + "/toolchain"
-//      // standalone ndk toolchains make openal-soft's build config easier.
-//      cmd := exec.Command(py27,
-//          "build/tools/make_standalone_toolchain.py",
-//          "--arch="+t.arch,
-//          "--api="+api,
-//          "--install-dir="+toolchain)
-//      cmd.Dir = ndkRoot
-//      if err := runCmd(cmd); err != nil {
-//          return err
-//      }
-
-//      cmd = exec.Command(cmake,
-//          initOpenAL,
-//          "-DCMAKE_TOOLCHAIN_FILE="+initOpenAL+"/XCompile-Android.txt",
-//          "-DHOST="+t.toolPrefix)
-//      cmd.Dir = buildDir
-//      orgPath := os.Getenv("PATH")
-//      if !buildN {
-//          cmd.Env = []string{"PATH=" + toolchain + "/bin" + string(os.PathListSeparator) + orgPath}
-//      }
-//      if err := runCmd(cmd); err != nil {
-//          return err
-//      }
-
-//      cmd = exec.Command(make)
-//      cmd.Dir = buildDir
-//      if err := runCmd(cmd); err != nil {
-//          return err
-//      }
-
-//      dst := filepath.Join(gomobilepath, "lib", t.abi, "libopenal.so")
-//      src := filepath.Join(alTmpDir, "build", abi, "libopenal.so")
-//      if err := copyFile(dst, src); err != nil {
-//          return err
-//      }
-//  }
-//  return nil
-// }
-
-// var commonPkgs = []string{
-// 	"golang.org/x/mobile/gl",
-// 	"golang.org/x/mobile/app",
-// 	"golang.org/x/mobile/exp/app/debug",
-// }
-
 func matchaInstallDarwin() error {
-	if !xcodeAvailable() {
+	if !matchaXcodeAvailable() {
 		return nil
 	}
-	if err := matchaInstallStd(darwinArmEnv); err != nil {
+	if err := matchaInstallPkg("std", darwinArmEnv, gomobilepath); err != nil {
 		return err
 	}
-	if err := matchaInstallStd(darwinArm64Env); err != nil {
+	if err := matchaInstallPkg("std", darwinArm64Env, gomobilepath); err != nil {
 		return err
 	}
 	// TODO(crawshaw): darwin/386 for the iOS simulator?
-	if err := matchaInstallStd(darwinAmd64Env, "-tags=ios"); err != nil {
+	if err := matchaInstallPkg("std", darwinAmd64Env, gomobilepath, "-tags=ios"); err != nil {
 		return err
 	}
 	return nil
 }
 
-func matchaInstallStd(env []string, args ...string) error {
-	return matchaInstallPkg("std", env, args...)
-}
-
-func matchaInstallPkg(pkg string, env []string, args ...string) error {
-	tOS, tArch, pd := getenv(env, "GOOS"), getenv(env, "GOARCH"), pkgdir(env)
+func matchaInstallPkg(pkg string, env []string, matchaGoMobilePath string, args ...string) error {
+	tOS, tArch, pd := matchaGetenv(env, "GOOS"), matchaGetenv(env, "GOARCH"), matchapkgdir(matchaGoMobilePath, env)
 	if tOS != "" && tArch != "" {
 		if buildV {
 			fmt.Fprintf(os.Stderr, "\n# Installing %s for %s/%s.\n", pkg, tOS, tArch)
@@ -359,12 +254,12 @@ func matchaInstallPkg(pkg string, env []string, args ...string) error {
 	}
 	cmd.Args = append(cmd.Args, pkg)
 	cmd.Env = append([]string{}, env...)
-	return runCmd(cmd)
+	return matchaRunCmd(cmd)
 }
 
 // func mkdir(dir string) error {
 // 	if buildX || buildN {
-// 		printcmd("mkdir -p %s", dir)
+// 		matchaprintcmd("mkdir -p %s", dir)
 // 	}
 // 	if buildN {
 // 		return nil
@@ -374,7 +269,7 @@ func matchaInstallPkg(pkg string, env []string, args ...string) error {
 
 // func symlink(src, dst string) error {
 // 	if buildX || buildN {
-// 		printcmd("ln -s %s %s", src, dst)
+// 		matchaprintcmd("ln -s %s %s", src, dst)
 // 	}
 // 	if buildN {
 // 		return nil
@@ -387,7 +282,7 @@ func matchaInstallPkg(pkg string, env []string, args ...string) error {
 
 // func rm(name string) error {
 // 	if buildX || buildN {
-// 		printcmd("rm %s", name)
+// 		matchaprintcmd("rm %s", name)
 // 	}
 // 	if buildN {
 // 		return nil
@@ -427,92 +322,146 @@ func matchaInstallPkg(pkg string, env []string, args ...string) error {
 // 	})
 // }
 
-// func removeAll(path string) error {
-// 	if buildX || buildN {
-// 		printcmd(`rm -r -f "%s"`, path)
-// 	}
-// 	if buildN {
-// 		return nil
-// 	}
+func matchaRemoveAll(path string) error {
+	if buildX || buildN {
+		matchaprintcmd(`rm -r -f "%s"`, path)
+	}
+	if buildN {
+		return nil
+	}
 
-// 	// os.RemoveAll behaves differently in windows.
-// 	// http://golang.org/issues/9606
-// 	if goos == "windows" {
-// 		resetReadOnlyFlagAll(path)
-// 	}
+	return os.RemoveAll(path)
+}
 
-// 	return os.RemoveAll(path)
-// }
+func matchaGoEnv(name string) string {
+	if val := os.Getenv(name); val != "" {
+		return val
+	}
+	val, err := exec.Command("go", "env", name).Output()
+	if err != nil {
+		panic(err) // the Go tool was tested to work earlier
+	}
+	return strings.TrimSpace(string(val))
+}
 
-// func resetReadOnlyFlagAll(path string) error {
-// 	fi, err := os.Stat(path)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if !fi.IsDir() {
-// 		return os.Chmod(path, 0666)
-// 	}
-// 	fd, err := os.Open(path)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer fd.Close()
+func matchaRunCmd(cmd *exec.Cmd) error {
+	if buildX || buildN {
+		dir := ""
+		if cmd.Dir != "" {
+			dir = "PWD=" + cmd.Dir + " "
+		}
+		env := strings.Join(cmd.Env, " ")
+		if env != "" {
+			env += " "
+		}
+		matchaprintcmd("%s%s%s", dir, env, strings.Join(cmd.Args, " "))
+	}
 
-// 	names, _ := fd.Readdirnames(-1)
-// 	for _, name := range names {
-// 		resetReadOnlyFlagAll(path + string(filepath.Separator) + name)
-// 	}
-// 	return nil
-// }
+	buf := new(bytes.Buffer)
+	buf.WriteByte('\n')
+	if buildV {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = buf
+		cmd.Stderr = buf
+	}
 
-// func goEnv(name string) string {
-// 	if val := os.Getenv(name); val != "" {
-// 		return val
-// 	}
-// 	val, err := exec.Command("go", "env", name).Output()
-// 	if err != nil {
-// 		panic(err) // the Go tool was tested to work earlier
-// 	}
-// 	return strings.TrimSpace(string(val))
-// }
+	if buildWork {
+		if goos == "windows" {
+			cmd.Env = append(cmd.Env, `TEMP=`+tmpdir)
+			cmd.Env = append(cmd.Env, `TMP=`+tmpdir)
+		} else {
+			cmd.Env = append(cmd.Env, `TMPDIR=`+tmpdir)
+		}
+	}
 
-// func runCmd(cmd *exec.Cmd) error {
-// 	if buildX || buildN {
-// 		dir := ""
-// 		if cmd.Dir != "" {
-// 			dir = "PWD=" + cmd.Dir + " "
-// 		}
-// 		env := strings.Join(cmd.Env, " ")
-// 		if env != "" {
-// 			env += " "
-// 		}
-// 		printcmd("%s%s%s", dir, env, strings.Join(cmd.Args, " "))
-// 	}
+	if !buildN {
+		cmd.Env = matchaEnviron(cmd.Env)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("%s failed: %v%s", strings.Join(cmd.Args, " "), err, buf)
+		}
+	}
+	return nil
+}
 
-// 	buf := new(bytes.Buffer)
-// 	buf.WriteByte('\n')
-// 	if buildV {
-// 		cmd.Stdout = os.Stdout
-// 		cmd.Stderr = os.Stderr
-// 	} else {
-// 		cmd.Stdout = buf
-// 		cmd.Stderr = buf
-// 	}
+func matchaXcodeAvailable() bool {
+	_, err := exec.LookPath("xcrun")
+	return err == nil
+}
 
-// 	if buildWork {
-// 		if goos == "windows" {
-// 			cmd.Env = append(cmd.Env, `TEMP=`+tmpdir)
-// 			cmd.Env = append(cmd.Env, `TMP=`+tmpdir)
-// 		} else {
-// 			cmd.Env = append(cmd.Env, `TMPDIR=`+tmpdir)
-// 		}
-// 	}
+func matchaGetenv(env []string, key string) string {
+	prefix := key + "="
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			return kv[len(prefix):]
+		}
+	}
+	return ""
+}
 
-// 	if !buildN {
-// 		cmd.Env = environ(cmd.Env)
-// 		if err := cmd.Run(); err != nil {
-// 			return fmt.Errorf("%s failed: %v%s", strings.Join(cmd.Args, " "), err, buf)
-// 		}
-// 	}
-// 	return nil
-// }
+func matchaprintcmd(format string, args ...interface{}) {
+	cmd := fmt.Sprintf(format+"\n", args...)
+	// if tmpdir != "" {
+	// 	cmd = strings.Replace(cmd, tmpdir, "$WORK", -1)
+	// }
+	// if androidHome := os.Getenv("ANDROID_HOME"); androidHome != "" {
+	// 	cmd = strings.Replace(cmd, androidHome, "$ANDROID_HOME", -1)
+	// }
+	// if gomobilepath != "" {
+	// 	cmd = strings.Replace(cmd, gomobilepath, "$GOMOBILE", -1)
+	// }
+	// if goroot := goEnv("GOROOT"); goroot != "" {
+	// 	cmd = strings.Replace(cmd, goroot, "$GOROOT", -1)
+	// }
+	// if gopath := goEnv("GOPATH"); gopath != "" {
+	// 	cmd = strings.Replace(cmd, gopath, "$GOPATH", -1)
+	// }
+	// if env := os.Getenv("HOME"); env != "" {
+	// 	cmd = strings.Replace(cmd, env, "$HOME", -1)
+	// }
+	// if env := os.Getenv("HOMEPATH"); env != "" {
+	// 	cmd = strings.Replace(cmd, env, "$HOMEPATH", -1)
+	// }
+	fmt.Fprint(xout, cmd)
+}
+
+// environ merges os.Environ and the given "key=value" pairs.
+// If a key is in both os.Environ and kv, kv takes precedence.
+func matchaEnviron(kv []string) []string {
+	cur := os.Environ()
+	new := make([]string, 0, len(cur)+len(kv))
+
+	envs := make(map[string]string, len(cur))
+	for _, ev := range cur {
+		elem := strings.SplitN(ev, "=", 2)
+		if len(elem) != 2 || elem[0] == "" {
+			// pass the env var of unusual form untouched.
+			// e.g. Windows may have env var names starting with "=".
+			new = append(new, ev)
+			continue
+		}
+		if goos == "windows" {
+			elem[0] = strings.ToUpper(elem[0])
+		}
+		envs[elem[0]] = elem[1]
+	}
+	for _, ev := range kv {
+		elem := strings.SplitN(ev, "=", 2)
+		if len(elem) != 2 || elem[0] == "" {
+			panic(fmt.Sprintf("malformed env var %q from input", ev))
+		}
+		if goos == "windows" {
+			elem[0] = strings.ToUpper(elem[0])
+		}
+		envs[elem[0]] = elem[1]
+	}
+	for k, v := range envs {
+		new = append(new, k+"="+v)
+	}
+	return new
+}
+
+func matchapkgdir(matchaGoMobilePath string, env []string) string {
+	return matchaGoMobilePath + "/pkg_" + matchaGetenv(env, "GOOS") + "_" + matchaGetenv(env, "GOARCH")
+}
