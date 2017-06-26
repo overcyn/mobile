@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/mobile/matcha"
 )
 
 var cmdMatcha = &command{
@@ -122,11 +124,24 @@ func runMatcha(cmd *command) error {
 }
 
 func matchaIOSBind(pkgs []*build.Package, command *command) error {
+	flags := &matcha.Flags{
+		BuildN:       buildN,
+		BuildX:       buildX,
+		BuildV:       buildV,
+		BuildWork:    buildWork,
+		BuildO:       buildO,
+		BuildA:       buildA,
+		BuildI:       buildI,
+		BuildGcflags: buildGcflags,
+		BuildLdflags: buildLdflags,
+		BuildTarget:  buildTarget,
+	}
+
 	name := "matcha"
 	title := "Matcha"
 	tempDir := tmpdir
 	genDir := filepath.Join(tempDir, "gen")
-	frameworkDir := buildO
+	frameworkDir := flags.BuildO
 	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
 		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
 	}
@@ -136,13 +151,13 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 
 	// Build the "matcha/bridge" dir
 	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "matchabridge")
-	if err := mkdir(bridgeDir); err != nil {
+	if err := matcha.Mkdir(flags, bridgeDir); err != nil {
 		return err
 	}
 
 	// Create the "main" go package, that references the other go packages
 	mainPath := filepath.Join(tempDir, "src", "iosbin", "main.go")
-	err := writeFile(mainPath, func(w io.Writer) error {
+	err := matcha.WriteFile(flags, mainPath, func(w io.Writer) error {
 		blah := command.flag.Args()[0]
 		format := fmt.Sprintf(string(iosBindFile), blah)
 		_, err := w.Write([]byte(format))
@@ -157,27 +172,27 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 	if err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.h"), filepath.Join(objcPkg.Dir, "matchaobjc.h.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.h"), filepath.Join(objcPkg.Dir, "matchaobjc.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.m"), filepath.Join(objcPkg.Dir, "matchaobjc.m.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.m"), filepath.Join(objcPkg.Dir, "matchaobjc.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchaobjc.go"), filepath.Join(objcPkg.Dir, "matchaobjc.go.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.go"), filepath.Join(objcPkg.Dir, "matchaobjc.go.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchago.h"), filepath.Join(objcPkg.Dir, "matchago.h.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.h"), filepath.Join(objcPkg.Dir, "matchago.h.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchago.m"), filepath.Join(objcPkg.Dir, "matchago.m.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.m"), filepath.Join(objcPkg.Dir, "matchago.m.support")); err != nil {
 		return err
 	}
-	if err := copyFile(filepath.Join(bridgeDir, "matchago.go"), filepath.Join(objcPkg.Dir, "matchago.go.support")); err != nil {
+	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.go"), filepath.Join(objcPkg.Dir, "matchago.go.support")); err != nil {
 		return err
 	}
 
 	// Build static framework output directory.
-	if err := removeAll(frameworkDir); err != nil {
+	if err := matcha.RemoveAll(flags, frameworkDir); err != nil {
 		return err
 	}
 
@@ -186,36 +201,36 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 	resourcesDir := filepath.Join(frameworkDir, "Versions", "A", "Resources")
 	modulesDir := filepath.Join(frameworkDir, "Versions", "A", "Modules")
 	binaryPath := filepath.Join(frameworkDir, "Versions", "A", title)
-	if err := mkdir(headersDir); err != nil {
+	if err := matcha.Mkdir(flags, headersDir); err != nil {
 		return err
 	}
-	if err := mkdir(resourcesDir); err != nil {
+	if err := matcha.Mkdir(flags, resourcesDir); err != nil {
 		return err
 	}
-	if err := mkdir(modulesDir); err != nil {
+	if err := matcha.Mkdir(flags, modulesDir); err != nil {
 		return err
 	}
-	if err := symlink("A", filepath.Join(frameworkDir, "Versions", "Current")); err != nil {
+	if err := matcha.Symlink(flags, "A", filepath.Join(frameworkDir, "Versions", "Current")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Headers"), filepath.Join(frameworkDir, "Headers")); err != nil {
+	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Headers"), filepath.Join(frameworkDir, "Headers")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Resources"), filepath.Join(frameworkDir, "Resources")); err != nil {
+	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Resources"), filepath.Join(frameworkDir, "Resources")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", "Modules"), filepath.Join(frameworkDir, "Modules")); err != nil {
+	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Modules"), filepath.Join(frameworkDir, "Modules")); err != nil {
 		return err
 	}
-	if err := symlink(filepath.Join("Versions", "Current", title), filepath.Join(frameworkDir, title)); err != nil {
+	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", title), filepath.Join(frameworkDir, title)); err != nil {
 		return err
 	}
 
 	// Copy in headers.
-	if err = copyFile(filepath.Join(headersDir, "matchaobjc.h"), filepath.Join(bridgeDir, "matchaobjc.h")); err != nil {
+	if err = matcha.CopyFile(flags, filepath.Join(headersDir, "matchaobjc.h"), filepath.Join(bridgeDir, "matchaobjc.h")); err != nil {
 		return err
 	}
-	if err = copyFile(filepath.Join(headersDir, "matchago.h"), filepath.Join(bridgeDir, "matchago.h")); err != nil {
+	if err = matcha.CopyFile(flags, filepath.Join(headersDir, "matchago.h"), filepath.Join(bridgeDir, "matchago.h")); err != nil {
 		return err
 	}
 
@@ -232,7 +247,7 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 		Module:  title,
 		Headers: []string{"matchaobjc.h", "matchago.h"},
 	}
-	err = writeFile(filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
+	err = matcha.WriteFile(flags, filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
 		return iosModuleMapTmpl.Execute(w, mmVals)
 	})
 	if err != nil {
@@ -240,18 +255,33 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 	}
 
 	// Build platform binaries concurrently.
+	matchaDarwinArmEnv, err := matcha.DarwinArmEnv(flags)
+	if err != nil {
+		return err
+	}
+
+	matchaDarwinArm64Env, err := matcha.DarwinArm64Env(flags)
+	if err != nil {
+		return err
+	}
+
+	matchaDarwinAmd64Env, err := matcha.DarwinAmd64Env(flags)
+	if err != nil {
+		return err
+	}
+
 	type archPath struct {
 		arch string
 		path string
 		err  error
 	}
 	archChan := make(chan archPath)
-	for _, i := range [][]string{darwinArmEnv, darwinArm64Env, darwinAmd64Env} {
+	for _, i := range [][]string{matchaDarwinArmEnv, matchaDarwinArm64Env, matchaDarwinAmd64Env} {
 		go func(env []string) {
 			arch := getenv(env, "GOARCH")
 			env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
 			path := filepath.Join(tempDir, name+"-"+arch+".a")
-			err := goBuild(mainPath, env, "-buildmode=c-archive", "-o", path)
+			err := matcha.GoBuild(flags, mainPath, env, ctx, tmpdir, "-buildmode=c-archive", "-o", path)
 			archChan <- archPath{arch, path, err}
 		}(i)
 	}
@@ -267,8 +297,8 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 	// Lipo to build fat binary.
 	cmd := exec.Command("xcrun", "lipo", "-create")
 	for _, i := range archs {
-		cmd.Args = append(cmd.Args, "-arch", archClang(i.arch), i.path)
+		cmd.Args = append(cmd.Args, "-arch", matcha.ArchClang(i.arch), i.path)
 	}
 	cmd.Args = append(cmd.Args, "-o", binaryPath)
-	return runCmd(cmd)
+	return matcha.RunCmd(flags, tempDir, cmd)
 }

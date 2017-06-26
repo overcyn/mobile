@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go/build"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -12,6 +14,36 @@ import (
 	"strings"
 	"time"
 )
+
+// don't forget to remove it!
+func NewTmpDir(f *Flags) (string, error) {
+	_gomobilepath, err := GoMobilePath()
+	if err != nil {
+		return "", err
+	}
+
+	// Make $GOPATH/pkg/work
+	tmpdir := ""
+	if f.ShouldRun() {
+		tmpdir, err = ioutil.TempDir(_gomobilepath, "work-")
+		if err != nil {
+			return "", err
+		}
+	} else {
+		tmpdir = filepath.Join(_gomobilepath, "work")
+	}
+	if f.ShouldPrint() {
+		fmt.Fprintln(os.Stderr, "WORK="+tmpdir)
+	}
+	// defer func() {
+	// 	if buildWork {
+	// 		fmt.Printf("WORK=%s\n", tmpdir)
+	// 		return
+	// 	}
+	// 	removeAll(tmpdir)
+	// }()
+	return tmpdir, err
+}
 
 func XcodeAvailable() bool {
 	_, err := exec.LookPath("xcrun")
@@ -73,10 +105,17 @@ func PrintCommand(cmd *exec.Cmd) {
 }
 
 type Flags struct {
-	BuildN    bool // print commands but don't run
-	BuildX    bool // print commands
-	BuildV    bool // print package names
-	BuildWork bool // use working directory
+	BuildN    bool   // print commands but don't run
+	BuildX    bool   // print commands
+	BuildV    bool   // print package names
+	BuildWork bool   // use working directory
+	BuildO    string // output directory
+
+	BuildA       bool   // -a
+	BuildI       bool   // -i
+	BuildGcflags string // -gcflags
+	BuildLdflags string // -ldflags
+	BuildTarget  string // -target
 }
 
 func (f *Flags) ShouldPrint() bool {
@@ -89,11 +128,10 @@ func (f *Flags) ShouldRun() bool {
 
 func Init(flags *Flags) error {
 	// Get GOPATH
-	gopaths := filepath.SplitList(GoEnv("GOPATH"))
-	if len(gopaths) == 0 {
-		return fmt.Errorf("GOPATH is not set")
+	_gomobilepath, err := GoMobilePath()
+	if err != nil {
+		return err
 	}
-	_gomobilepath := filepath.Join(gopaths[0], "pkg/gomobile")
 
 	// Delete $GOPATH/pkg/gomobile
 	verpath := filepath.Join(_gomobilepath, "version")
@@ -204,7 +242,6 @@ func Init(flags *Flags) error {
 
 	// Install iOS libraries
 	var env []string
-	var err error
 
 	if !XcodeAvailable() {
 		return errors.New("Xcode not available")
@@ -213,14 +250,14 @@ func Init(flags *Flags) error {
 	if env, err = DarwinArmEnv(flags); err != nil {
 		return err
 	}
-	if err := InstallPkg(flags, tmpdir, "std", env, _gomobilepath); err != nil {
+	if err := InstallPkg(flags, tmpdir, "std", env); err != nil {
 		return err
 	}
 
 	if env, err = DarwinArm64Env(flags); err != nil {
 		return err
 	}
-	if err := InstallPkg(flags, tmpdir, "std", env, _gomobilepath); err != nil {
+	if err := InstallPkg(flags, tmpdir, "std", env); err != nil {
 		return err
 	}
 
@@ -228,7 +265,7 @@ func Init(flags *Flags) error {
 	if env, err = DarwinAmd64Env(flags); err != nil {
 		return err
 	}
-	if err := InstallPkg(flags, tmpdir, "std", env, _gomobilepath, "-tags=ios"); err != nil {
+	if err := InstallPkg(flags, tmpdir, "std", env, "-tags=ios"); err != nil {
 		return err
 	}
 
@@ -376,8 +413,12 @@ func Environ(kv []string) []string {
 	return new
 }
 
-func Pkgdir(matchaGoMobilePath string, env []string) string {
-	return matchaGoMobilePath + "/pkg_" + Getenv(env, "GOOS") + "_" + Getenv(env, "GOARCH")
+func Pkgdir(env []string) (string, error) {
+	gomobilepath, err := GoMobilePath()
+	if err != nil {
+		return "", err
+	}
+	return gomobilepath + "/pkg_" + Getenv(env, "GOOS") + "_" + Getenv(env, "GOARCH"), nil
 }
 
 func Printcmd(format string, args ...interface{}) {
@@ -427,6 +468,48 @@ func RemoveAll(f *Flags, path string) error {
 	return nil
 }
 
+func WriteFile(flags *Flags, filename string, generate func(io.Writer) error) error {
+	if err := Mkdir(flags, filepath.Dir(filename)); err != nil {
+		return err
+	}
+	if flags.ShouldPrint() {
+		fmt.Fprintf(os.Stderr, "write %s\n", filename)
+	}
+	if flags.ShouldRun() {
+		f, err := os.Create(filename)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+		}()
+		return generate(f)
+	}
+	return generate(ioutil.Discard)
+}
+
+func CopyFile(f *Flags, dst, src string) error {
+	if f.ShouldPrint() {
+		Printcmd("cp %s %s", src, dst)
+	}
+	return WriteFile(f, dst, func(w io.Writer) error {
+		if f.ShouldRun() {
+			f, err := os.Open(src)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			if _, err := io.Copy(w, f); err != nil {
+				return fmt.Errorf("cp %s %s failed: %v", src, dst, err)
+			}
+		}
+		return nil
+	})
+}
+
 func RunCmd(f *Flags, tmpdir string, cmd *exec.Cmd) error {
 	if f.ShouldPrint() {
 		dir := ""
@@ -468,8 +551,13 @@ func RunCmd(f *Flags, tmpdir string, cmd *exec.Cmd) error {
 	return nil
 }
 
-func InstallPkg(f *Flags, temporarydir string, pkg string, env []string, matchaGoMobilePath string, args ...string) error {
-	tOS, tArch, pd := Getenv(env, "GOOS"), Getenv(env, "GOARCH"), Pkgdir(matchaGoMobilePath, env)
+func InstallPkg(f *Flags, temporarydir string, pkg string, env []string, args ...string) error {
+	pd, err := Pkgdir(env)
+	if err != nil {
+		return err
+	}
+
+	tOS, tArch := Getenv(env, "GOOS"), Getenv(env, "GOARCH")
 	if tOS != "" && tArch != "" {
 		if f.BuildV {
 			fmt.Fprintf(os.Stderr, "\n# Installing %s for %s/%s.\n", pkg, tOS, tArch)
@@ -523,4 +611,74 @@ func Mkdir(flags *Flags, dir string) error {
 		return os.MkdirAll(dir, 0755)
 	}
 	return nil
+}
+
+func Symlink(flags *Flags, src, dst string) error {
+	if flags.ShouldPrint() {
+		Printcmd("ln -s %s %s", src, dst)
+	}
+	if flags.ShouldRun() {
+		// if goos == "windows" {
+		// 	return doCopyAll(dst, src)
+		// }
+		return os.Symlink(src, dst)
+	}
+	return nil
+}
+
+func GoBuild(f *Flags, src string, env []string, ctx build.Context, tmpdir string, args ...string) error {
+	return GoCmd(f, "build", []string{src}, env, ctx, tmpdir, args...)
+}
+
+func GoInstall(f *Flags, srcs []string, env []string, ctx build.Context, tmpdir string, args ...string) error {
+	return GoCmd(f, "install", srcs, env, ctx, tmpdir, args...)
+}
+
+func GoMobilePath() (string, error) {
+	gopaths := filepath.SplitList(GoEnv("GOPATH"))
+	gomobilepath := ""
+	for _, p := range gopaths {
+		gomobilepath = filepath.Join(p, "pkg", "gomobile")
+		if _, err := os.Stat(gomobilepath); err == nil {
+			break
+		}
+	}
+	if gomobilepath == "" {
+		return "", fmt.Errorf("GOPATH is not set")
+	}
+	return gomobilepath, nil
+}
+
+func GoCmd(f *Flags, subcmd string, srcs []string, env []string, ctx build.Context, tmpdir string, args ...string) error {
+	pd, err := Pkgdir(env)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("go", subcmd, "-pkgdir="+pd)
+	if len(ctx.BuildTags) > 0 {
+		cmd.Args = append(cmd.Args, "-tags", strings.Join(ctx.BuildTags, " "))
+	}
+	if f.BuildV {
+		cmd.Args = append(cmd.Args, "-v")
+	}
+	if subcmd != "install" && f.BuildI {
+		cmd.Args = append(cmd.Args, "-i")
+	}
+	if f.BuildX {
+		cmd.Args = append(cmd.Args, "-x")
+	}
+	if f.BuildGcflags != "" {
+		cmd.Args = append(cmd.Args, "-gcflags", f.BuildGcflags)
+	}
+	if f.BuildLdflags != "" {
+		cmd.Args = append(cmd.Args, "-ldflags", f.BuildLdflags)
+	}
+	if f.BuildWork {
+		cmd.Args = append(cmd.Args, "-work")
+	}
+	cmd.Args = append(cmd.Args, args...)
+	cmd.Args = append(cmd.Args, srcs...)
+	cmd.Env = append([]string{}, env...)
+	return RunCmd(f, tmpdir, cmd)
 }

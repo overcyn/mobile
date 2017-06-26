@@ -21,6 +21,17 @@ and gomobile install.
 }
 
 func runInitMatcha(cmd *command) error {
-	flags := &matcha.Flags{BuildN: buildN, BuildX: buildX, BuildV: buildV, BuildWork: buildWork}
+	flags := &matcha.Flags{
+		BuildN:       buildN,
+		BuildX:       buildX,
+		BuildV:       buildV,
+		BuildWork:    buildWork,
+		BuildO:       buildO,
+		BuildA:       buildA,
+		BuildI:       buildI,
+		BuildGcflags: buildGcflags,
+		BuildLdflags: buildLdflags,
+		BuildTarget:  buildTarget,
+	}
 	return matcha.Init(flags)
 }
