@@ -14,54 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
-
-// don't forget to remove it!
-func NewTmpDir(f *Flags) (string, error) {
-	_gomobilepath, err := GoMobilePath()
-	if err != nil {
-		return "", err
-	}
-
-	// Make $GOPATH/pkg/work
-	tmpdir := ""
-	if f.ShouldRun() {
-		tmpdir, err = ioutil.TempDir(_gomobilepath, "work-")
-		if err != nil {
-			return "", err
-		}
-	} else {
-		tmpdir = filepath.Join(_gomobilepath, "work")
-	}
-	if f.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "WORK="+tmpdir)
-	}
-	// defer func() {
-	// 	if buildWork {
-	// 		fmt.Printf("WORK=%s\n", tmpdir)
-	// 		return
-	// 	}
-	// 	removeAll(tmpdir)
-	// }()
-	return tmpdir, err
-}
-
-func NewBindTmpDir(f *Flags) (string, error) {
-	tmpdir := "$WORK"
-	if f.ShouldRun() {
-		var err error
-		tmpdir, err = ioutil.TempDir("", "gomobile-work-")
-		if err != nil {
-			return "", err
-		}
-	}
-
-	if f.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "WORK="+tmpdir)
-	}
-	return tmpdir, nil
-}
 
 func XcodeAvailable() bool {
 	_, err := exec.LookPath("xcrun")
@@ -85,10 +38,14 @@ func ArchClang(goarch string) string {
 
 // Get clang path and clang flags (SDK Path).
 func EnvClang(flags *Flags, sdkName string) (_clang, cflags string, err error) {
+	if !XcodeAvailable() {
+		return "", "", errors.New("Xcode not available")
+	}
+
 	cmd := exec.Command("xcrun", "--sdk", sdkName, "--find", "clang")
 	var clang string
 	if flags.ShouldPrint() {
-		PrintCommand(cmd)
+		fmt.Fprintln(os.Stderr, cmd)
 	}
 	if flags.ShouldRun() {
 		out, err := cmd.CombinedOutput()
@@ -103,7 +60,7 @@ func EnvClang(flags *Flags, sdkName string) (_clang, cflags string, err error) {
 	cmd = exec.Command("xcrun", "--sdk", sdkName, "--show-sdk-path")
 	var sdk string
 	if flags.ShouldPrint() {
-		PrintCommand(cmd)
+		fmt.Fprintln(os.Stderr, cmd)
 	}
 	if flags.ShouldRun() {
 		out, err := cmd.CombinedOutput()
@@ -116,10 +73,6 @@ func EnvClang(flags *Flags, sdkName string) (_clang, cflags string, err error) {
 	}
 
 	return clang, "-isysroot " + sdk, nil
-}
-
-func PrintCommand(cmd *exec.Cmd) {
-	fmt.Println(cmd)
 }
 
 type Flags struct {
@@ -144,173 +97,7 @@ func (f *Flags) ShouldRun() bool {
 	return !f.BuildN
 }
 
-func Init(flags *Flags) error {
-	// Get GOPATH
-	_gomobilepath, err := GoMobilePath()
-	if err != nil {
-		return err
-	}
-
-	// Delete $GOPATH/pkg/gomobile
-	verpath := filepath.Join(_gomobilepath, "version")
-	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "GOMOBILE="+_gomobilepath)
-	}
-	RemoveAll(flags, _gomobilepath)
-
-	// Make $GOPATH/pkg/gomobile
-	if err := Mkdir(flags, _gomobilepath); err != nil {
-		return err
-	}
-
-	// Make $GOPATH/pkg/work
-	var tmpdir string
-	if !flags.ShouldRun() {
-		tmpdir = filepath.Join(_gomobilepath, "work")
-	} else {
-		var err error
-		tmpdir, err = ioutil.TempDir(_gomobilepath, "work-")
-		if err != nil {
-			return err
-		}
-	}
-	// if buildX || buildN {
-	//  fmt.Fprintln(xout, "WORK="+tmpdir)
-	// }
-	defer func() {
-		// if buildWork {
-		//  fmt.Printf("WORK=%s\n", tmpdir)
-		//  return
-		// }
-		RemoveAll(flags, tmpdir)
-	}()
-
-	// // Build NDK stuff?
-	// if buildN {
-	//  initNDK = "$NDK_PATH"
-	//  initOpenAL = "$OPENAL_PATH"
-	// } else {
-	//  toolsDir := filepath.Join("prebuilt", archNDK(), "bin")
-	//  // Try the ndk-bundle SDK package package, if installed.
-	//  if initNDK == "" {
-	//      if sdkHome := os.Getenv("ANDROID_HOME"); sdkHome != "" {
-	//          path := filepath.Join(sdkHome, "ndk-bundle")
-	//          if st, err := os.Stat(filepath.Join(path, toolsDir)); err == nil && st.IsDir() {
-	//              initNDK = path
-	//          }
-	//      }
-	//  }
-	//  if initNDK != "" {
-	//      var err error
-	//      if initNDK, err = filepath.Abs(initNDK); err != nil {
-	//          return err
-	//      }
-	//      // Check if the platform directory contains a known subdirectory.
-	//      if _, err := os.Stat(filepath.Join(initNDK, toolsDir)); err != nil {
-	//          if os.IsNotExist(err) {
-	//              return fmt.Errorf("%q does not point to an Android NDK.", initNDK)
-	//          }
-	//          return err
-	//      }
-	//      ndkFile := filepath.Join(_gomobilepath, "android_ndk_root")
-	//      if err := ioutil.WriteFile(ndkFile, []byte(initNDK), 0644); err != nil {
-	//          return err
-	//      }
-	//  }
-	//  if initOpenAL != "" {
-	//      var err error
-	//      if initOpenAL, err = filepath.Abs(initOpenAL); err != nil {
-	//          return err
-	//      }
-	//  }
-	// }
-	// ndkRoot = initNDK
-	// if err := matchaEnvInit(); err != nil {
-	//  return err
-	// }
-
-	// // Install "golang.org/x/mobile/gl", "golang.org/x/mobile/app", "golang.org/x/mobile/exp/app/debug",
-	// if runtime.GOOS == "darwin" {
-	//  // Install common x/mobile packages for local development.
-	//  // These are often slow to compile (due to cgo) and easy to forget.
-	//  //
-	//  // Limited to darwin for now as it is common for linux to
-	//  // not have GLES installed.
-	//  //
-	//  // TODO: consider testing GLES installation and suggesting it here
-	//  for _, pkg := range commonPkgs {
-	//      if err := installPkg(pkg, nil); err != nil {
-	//          return err
-	//      }
-	//  }
-	// }
-
-	// Install standard libraries for cross compilers.
-	start := time.Now()
-	// Ideally this would be -buildmode=c-shared.
-	// https://golang.org/issue/13234.
-
-	// androidArgs := []string{"-gcflags=-shared", "-ldflags=-shared"}
-	// for _, arch := range archs {
-	//  env := androidEnv[arch]
-	//  if err := InstallPkg("std", env, _gomobilepath, androidArgs...); err != nil {
-	//      return err
-	//  }
-	// }
-
-	// Install iOS libraries
-	var env []string
-
-	if !XcodeAvailable() {
-		return errors.New("Xcode not available")
-	}
-
-	if env, err = DarwinArmEnv(flags); err != nil {
-		return err
-	}
-	if err := InstallPkg(flags, tmpdir, "std", env); err != nil {
-		return err
-	}
-
-	if env, err = DarwinArm64Env(flags); err != nil {
-		return err
-	}
-	if err := InstallPkg(flags, tmpdir, "std", env); err != nil {
-		return err
-	}
-
-	// TODO(crawshaw): darwin/386 for the iOS simulator?
-	if env, err = DarwinAmd64Env(flags); err != nil {
-		return err
-	}
-	if err := InstallPkg(flags, tmpdir, "std", env, "-tags=ios"); err != nil {
-		return err
-	}
-
-	// Write Go Version to $GOPATH/pkg/gomobile/version
-	if flags.ShouldPrint() {
-		Printcmd("go version > %s", verpath)
-	}
-	if flags.ShouldRun() {
-		goversion, err := GoVersion()
-		if err != nil {
-			return nil
-		}
-		if err := ioutil.WriteFile(verpath, goversion, 0644); err != nil {
-			return err
-		}
-	}
-	if flags.BuildV {
-		took := time.Since(start) / time.Second * time.Second
-		fmt.Fprintf(os.Stderr, "\nDone, build took %s.\n", took)
-	}
-	return nil
-}
-
 func DarwinArmEnv(f *Flags) ([]string, error) {
-	if !XcodeAvailable() {
-		return nil, errors.New("Xcode not available")
-	}
 	clang, cflags, err := EnvClang(f, "iphoneos")
 	if err != nil {
 		return nil, err
@@ -328,9 +115,6 @@ func DarwinArmEnv(f *Flags) ([]string, error) {
 }
 
 func DarwinArm64Env(f *Flags) ([]string, error) {
-	if !XcodeAvailable() {
-		return nil, errors.New("Xcode not available")
-	}
 	clang, cflags, err := EnvClang(f, "iphoneos")
 	if err != nil {
 		return nil, err
@@ -347,9 +131,6 @@ func DarwinArm64Env(f *Flags) ([]string, error) {
 }
 
 func Darwin386Env(f *Flags) ([]string, error) {
-	if !XcodeAvailable() {
-		return nil, errors.New("Xcode not available")
-	}
 	clang, cflags, err := EnvClang(f, "iphonesimulator")
 	if err != nil {
 		return nil, err
@@ -366,9 +147,6 @@ func Darwin386Env(f *Flags) ([]string, error) {
 }
 
 func DarwinAmd64Env(f *Flags) ([]string, error) {
-	if !XcodeAvailable() {
-		return nil, errors.New("Xcode not available")
-	}
 	clang, cflags, err := EnvClang(f, "iphonesimulator")
 	if err != nil {
 		return nil, err
@@ -462,70 +240,19 @@ func Printcmd(format string, args ...interface{}) {
 	// if env := os.Getenv("HOMEPATH"); env != "" {
 	//  cmd = strings.Replace(cmd, env, "$HOMEPATH", -1)
 	// }
-	fmt.Fprint(os.Stderr, cmd)
+	fmt.Fprintln(os.Stderr, cmd)
 }
 
+// Returns the enviromental variable for name.
 func GoEnv(name string) string {
 	if val := os.Getenv(name); val != "" {
 		return val
 	}
 	val, err := exec.Command("go", "env", name).Output()
 	if err != nil {
-		panic(err) // the Go tool was tested to work earlier
+		return ""
 	}
 	return strings.TrimSpace(string(val))
-}
-
-func RemoveAll(f *Flags, path string) error {
-	if f.ShouldPrint() {
-		Printcmd(`rm -r -f "%s"`, path)
-	}
-	if f.ShouldRun() {
-		return os.RemoveAll(path)
-	}
-	return nil
-}
-
-func WriteFile(flags *Flags, filename string, generate func(io.Writer) error) error {
-	if err := Mkdir(flags, filepath.Dir(filename)); err != nil {
-		return err
-	}
-	if flags.ShouldPrint() {
-		fmt.Fprintf(os.Stderr, "write %s\n", filename)
-	}
-	if flags.ShouldRun() {
-		f, err := os.Create(filename)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if cerr := f.Close(); err == nil {
-				err = cerr
-			}
-		}()
-		return generate(f)
-	}
-	return generate(ioutil.Discard)
-}
-
-func CopyFile(f *Flags, dst, src string) error {
-	if f.ShouldPrint() {
-		Printcmd("cp %s %s", src, dst)
-	}
-	return WriteFile(f, dst, func(w io.Writer) error {
-		if f.ShouldRun() {
-			f, err := os.Open(src)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			if _, err := io.Copy(w, f); err != nil {
-				return fmt.Errorf("cp %s %s failed: %v", src, dst, err)
-			}
-		}
-		return nil
-	})
 }
 
 func RunCmd(f *Flags, tmpdir string, cmd *exec.Cmd) error {
@@ -603,45 +330,22 @@ func InstallPkg(f *Flags, temporarydir string, pkg string, env []string, args ..
 	return RunCmd(f, temporarydir, cmd)
 }
 
-func GoVersion() ([]byte, error) {
-	gobin, err := exec.LookPath("go")
-	if err != nil {
-		return nil, errors.New("go not found")
+func GoVersion(f *Flags) ([]byte, error) {
+	cmd := exec.Command("go", "version")
+	if f.ShouldPrint() {
+		fmt.Fprintln(os.Stderr, cmd)
 	}
-	goVer, err := exec.Command(gobin, "version").CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("'go version' failed: %v, %s", err, goVer)
+	if f.ShouldRun() {
+		goVer, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("'go version' failed: %v, %s", err, goVer)
+		}
+		if bytes.HasPrefix(goVer, []byte("go version go1.4")) || bytes.HasPrefix(goVer, []byte("go version go1.5")) || bytes.HasPrefix(goVer, []byte("go version go1.6")) {
+			return nil, errors.New("Go 1.7 or newer is required")
+		}
+		return goVer, nil
 	}
-	switch {
-	case bytes.HasPrefix(goVer, []byte("go version go1.4")),
-		bytes.HasPrefix(goVer, []byte("go version go1.5")),
-		bytes.HasPrefix(goVer, []byte("go version go1.6")):
-		return nil, errors.New("Go 1.7 or newer is required")
-	}
-	return goVer, nil
-}
-
-func Mkdir(flags *Flags, dir string) error {
-	if flags.ShouldPrint() {
-		Printcmd("mkdir -p %s", dir)
-	}
-	if flags.ShouldRun() {
-		return os.MkdirAll(dir, 0755)
-	}
-	return nil
-}
-
-func Symlink(flags *Flags, src, dst string) error {
-	if flags.ShouldPrint() {
-		Printcmd("ln -s %s %s", src, dst)
-	}
-	if flags.ShouldRun() {
-		// if goos == "windows" {
-		// 	return doCopyAll(dst, src)
-		// }
-		return os.Symlink(src, dst)
-	}
-	return nil
+	return []byte("go version goX.X.X"), nil
 }
 
 func GoBuild(f *Flags, src string, env []string, ctx build.Context, tmpdir string, args ...string) error {
@@ -652,6 +356,7 @@ func GoInstall(f *Flags, srcs []string, env []string, ctx build.Context, tmpdir 
 	return GoCmd(f, "install", srcs, env, ctx, tmpdir, args...)
 }
 
+// $GOPATH/pkg/gomobile
 func GoMobilePath() (string, error) {
 	gopaths := filepath.SplitList(GoEnv("GOPATH"))
 	gomobilepath := ""
@@ -662,7 +367,11 @@ func GoMobilePath() (string, error) {
 		}
 	}
 	if gomobilepath == "" {
-		return "", fmt.Errorf("GOPATH is not set")
+		if len(gopaths) == 0 {
+			return "", fmt.Errorf("$GOPATH does not exist")
+		} else {
+			return filepath.Join(gopaths[0], "pkg", "gomobile"), nil
+		}
 	}
 	return gomobilepath, nil
 }
@@ -997,100 +706,3 @@ var iosBindHeaderTmpl = template.Must(template.New("ios.h").Parse(`
 {{end}}
 #endif
 `))
-
-func Bind(flags *Flags, args []string) error {
-	tempdir, err := NewBindTmpDir(flags)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if flags.BuildWork {
-			fmt.Printf("WORK=%s\n", tempdir)
-			return
-		}
-		RemoveAll(flags, tempdir)
-	}()
-
-	if flags.ShouldRun() {
-		_gomobilepath, err := GoMobilePath()
-		if err != nil {
-			return err
-		}
-		goVersion, err := GoVersion()
-		if err != nil {
-			return err
-		}
-		verpath := filepath.Join(_gomobilepath, "version")
-		installedVersion, err := ioutil.ReadFile(verpath)
-		if err != nil {
-			return errors.New("toolchain partially installed, run `gomobile init`")
-		}
-		if !bytes.Equal(installedVersion, goVersion) {
-			return errors.New("toolchain out of date, run `gomobile init`")
-		}
-	}
-
-	workingdir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	// cleanup, err := buildEnvInit()
-	// if err != nil {
-	//  return err
-	// }
-	// defer cleanup()
-
-	targetOS, _, err := ParseBuildTarget(flags.BuildTarget)
-	if err != nil {
-		return fmt.Errorf(`invalid -target=%q: %v`, flags.BuildTarget, err)
-	}
-
-	_ctx := build.Default
-	_ctx.GOARCH = "arm"
-	_ctx.GOOS = targetOS
-
-	if _ctx.GOOS == "darwin" {
-		_ctx.BuildTags = append(_ctx.BuildTags, "ios")
-	}
-
-	// if bindJavaPkg != "" && _ctx.GOOS != "android" {
-	//  return fmt.Errorf("-javapkg is supported only for android target")
-	// }
-	// if bindPrefix != "" && _ctx.GOOS != "darwin" {
-	//  return fmt.Errorf("-prefix is supported only for ios target")
-	// }
-
-	// if _ctx.GOOS == "android" && ndkRoot == "" {
-	//  return errors.New("no Android NDK path is set. Please run gomobile init with the ndk-bundle installed through the Android SDK manager or with the -ndk flag set.")
-	// }
-
-	var pkgs []*build.Package
-	switch len(args) {
-	case 0:
-		pkgs = make([]*build.Package, 1)
-		pkgs[0], err = _ctx.ImportDir(workingdir, build.ImportComment)
-	default:
-		pkgs, err = ImportPackages(args, _ctx, workingdir)
-	}
-	if err != nil {
-		return err
-	}
-
-	// check if any of the package is main
-	for _, pkg := range pkgs {
-		if pkg.Name == "main" {
-			return fmt.Errorf("binding 'main' package (%s) is not supported", pkg.ImportComment)
-		}
-	}
-
-	switch targetOS {
-	case "android":
-		return errors.New("Android unsupporetd")
-	case "darwin":
-		// TODO: use targetArchs?
-		return IOSBind(flags, pkgs, args[0], tempdir, _ctx)
-	default:
-		return fmt.Errorf(`invalid -target=%q`, flags.BuildTarget)
-	}
-}
