@@ -1,12 +1,94 @@
 package matcha
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 )
+
+func RunCmd(f *Flags, tmpdir string, cmd *exec.Cmd) error {
+	if f.ShouldPrint() {
+		dir := ""
+		if cmd.Dir != "" {
+			dir = "PWD=" + cmd.Dir + " "
+		}
+		env := strings.Join(cmd.Env, " ")
+		if env != "" {
+			env += " "
+		}
+		fmt.Fprintln(os.Stderr, dir, env, strings.Join(cmd.Args, " "))
+	}
+
+	buf := new(bytes.Buffer)
+	buf.WriteByte('\n')
+	if f.BuildV {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = buf
+		cmd.Stderr = buf
+	}
+
+	if f.BuildWork {
+		if runtime.GOOS == "windows" {
+			cmd.Env = append(cmd.Env, `TEMP=`+tmpdir)
+			cmd.Env = append(cmd.Env, `TMP=`+tmpdir)
+		} else {
+			cmd.Env = append(cmd.Env, `TMPDIR=`+tmpdir)
+		}
+	}
+
+	if !f.BuildN {
+		cmd.Env = Environ(cmd.Env)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("%s failed: %v%s", strings.Join(cmd.Args, " "), err, buf)
+		}
+	}
+	return nil
+}
+
+// environ merges os.Environ and the given "key=value" pairs.
+// If a key is in both os.Environ and kv, kv takes precedence.
+func Environ(kv []string) []string {
+	cur := os.Environ()
+	new := make([]string, 0, len(cur)+len(kv))
+	goos := runtime.GOOS
+
+	envs := make(map[string]string, len(cur))
+	for _, ev := range cur {
+		elem := strings.SplitN(ev, "=", 2)
+		if len(elem) != 2 || elem[0] == "" {
+			// pass the env var of unusual form untouched.
+			// e.g. Windows may have env var names starting with "=".
+			new = append(new, ev)
+			continue
+		}
+		if goos == "windows" {
+			elem[0] = strings.ToUpper(elem[0])
+		}
+		envs[elem[0]] = elem[1]
+	}
+	for _, ev := range kv {
+		elem := strings.SplitN(ev, "=", 2)
+		if len(elem) != 2 || elem[0] == "" {
+			panic(fmt.Sprintf("malformed env var %q from input", ev))
+		}
+		if goos == "windows" {
+			elem[0] = strings.ToUpper(elem[0])
+		}
+		envs[elem[0]] = elem[1]
+	}
+	for k, v := range envs {
+		new = append(new, k+"="+v)
+	}
+	return new
+}
 
 // Creates a new temporary directory. Don't forget to remove.
 func NewTmpDir(f *Flags, path string) (string, error) {
@@ -33,7 +115,7 @@ func NewTmpDir(f *Flags, path string) (string, error) {
 
 func RemoveAll(f *Flags, path string) error {
 	if f.ShouldPrint() {
-		Printcmd(`rm -r -f "%s"`, path)
+		fmt.Fprintln(os.Stderr, `rm -r -f "%s"`, path)
 	}
 	if f.ShouldRun() {
 		return os.RemoveAll(path)
@@ -75,7 +157,7 @@ func ReadFile(flags *Flags, filename string) ([]byte, error) {
 
 func CopyFile(f *Flags, dst, src string) error {
 	if f.ShouldPrint() {
-		Printcmd("cp %s %s", src, dst)
+		fmt.Fprintln(os.Stderr, "cp %s %s", src, dst)
 	}
 	return WriteFile(f, dst, func(w io.Writer) error {
 		if f.ShouldRun() {
@@ -95,7 +177,7 @@ func CopyFile(f *Flags, dst, src string) error {
 
 func Mkdir(flags *Flags, dir string) error {
 	if flags.ShouldPrint() {
-		Printcmd("mkdir -p %s", dir)
+		fmt.Fprintln(os.Stderr, "mkdir -p %s", dir)
 	}
 	if flags.ShouldRun() {
 		return os.MkdirAll(dir, 0755)
@@ -105,7 +187,7 @@ func Mkdir(flags *Flags, dir string) error {
 
 func Symlink(flags *Flags, src, dst string) error {
 	if flags.ShouldPrint() {
-		Printcmd("ln -s %s %s", src, dst)
+		fmt.Fprintln(os.Stderr, "ln -s %s %s", src, dst)
 	}
 	if flags.ShouldRun() {
 		// if goos == "windows" {

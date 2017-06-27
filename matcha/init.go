@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -63,7 +64,7 @@ func Init(flags *Flags) error {
 	// Write Go Version to $GOPATH/pkg/gomobile/version
 	verpath := filepath.Join(gomobilepath, "version")
 	if flags.ShouldPrint() {
-		Printcmd("go version > %s", verpath)
+		fmt.Fprintln(os.Stderr, "go version > %s", verpath)
 	}
 	if flags.ShouldRun() {
 		goversion, err := GoVersion(flags)
@@ -81,4 +82,39 @@ func Init(flags *Flags) error {
 		fmt.Fprintf(os.Stderr, "\nDone, build took %s.\n", took)
 	}
 	return nil
+}
+
+// Build package with properties.
+func InstallPkg(f *Flags, temporarydir string, pkg string, env []string, args ...string) error {
+	pd, err := PkgPath(env)
+	if err != nil {
+		return err
+	}
+
+	tOS, tArch := Getenv(env, "GOOS"), Getenv(env, "GOARCH")
+	if tOS != "" && tArch != "" {
+		if f.BuildV {
+			fmt.Fprintf(os.Stderr, "\n# Installing %s for %s/%s.\n", pkg, tOS, tArch)
+		}
+		args = append(args, "-pkgdir="+pd)
+	} else {
+		if f.BuildV {
+			fmt.Fprintf(os.Stderr, "\n# Installing %s.\n", pkg)
+		}
+	}
+
+	cmd := exec.Command("go", "install")
+	cmd.Args = append(cmd.Args, args...)
+	if f.BuildV {
+		cmd.Args = append(cmd.Args, "-v")
+	}
+	if f.BuildX {
+		cmd.Args = append(cmd.Args, "-x")
+	}
+	if f.BuildWork {
+		cmd.Args = append(cmd.Args, "-work")
+	}
+	cmd.Args = append(cmd.Args, pkg)
+	cmd.Env = append([]string{}, env...)
+	return RunCmd(f, temporarydir, cmd)
 }
