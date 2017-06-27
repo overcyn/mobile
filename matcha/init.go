@@ -64,7 +64,7 @@ func Init(flags *Flags) error {
 	// Write Go Version to $GOPATH/pkg/gomobile/version
 	verpath := filepath.Join(gomobilepath, "version")
 	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "go version > %s", verpath)
+		fmt.Fprintln(os.Stderr, "go version >", verpath)
 	}
 	if flags.ShouldRun() {
 		goversion, err := GoVersion(flags)

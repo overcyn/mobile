@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+func PrintCmd(cmd *exec.Cmd) {
+	fmt.Fprintln(os.Stderr, strings.Join(cmd.Args, " "))
+}
+
 func RunCmd(f *Flags, tmpdir string, cmd *exec.Cmd) error {
 	if f.ShouldPrint() {
 		dir := ""
@@ -115,7 +119,7 @@ func NewTmpDir(f *Flags, path string) (string, error) {
 
 func RemoveAll(f *Flags, path string) error {
 	if f.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, `rm -r -f "%s"`, path)
+		fmt.Fprintf(os.Stderr, "rm -r -f %s\n", path)
 	}
 	if f.ShouldRun() {
 		return os.RemoveAll(path)
@@ -157,7 +161,7 @@ func ReadFile(flags *Flags, filename string) ([]byte, error) {
 
 func CopyFile(f *Flags, dst, src string) error {
 	if f.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "cp %s %s", src, dst)
+		fmt.Fprintf(os.Stderr, "cp %s %s\n", src, dst)
 	}
 	return WriteFile(f, dst, func(w io.Writer) error {
 		if f.ShouldRun() {
@@ -177,7 +181,7 @@ func CopyFile(f *Flags, dst, src string) error {
 
 func Mkdir(flags *Flags, dir string) error {
 	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "mkdir -p %s", dir)
+		fmt.Fprintf(os.Stderr, "mkdir -p %s\n", dir)
 	}
 	if flags.ShouldRun() {
 		return os.MkdirAll(dir, 0755)
@@ -187,7 +191,7 @@ func Mkdir(flags *Flags, dir string) error {
 
 func Symlink(flags *Flags, src, dst string) error {
 	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, "ln -s %s %s", src, dst)
+		fmt.Fprintf(os.Stderr, "ln -s %s %s\n", src, dst)
 	}
 	if flags.ShouldRun() {
 		// if goos == "windows" {

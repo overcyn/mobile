@@ -57,13 +57,9 @@ func runMatcha(cmd *command) error {
 		BuildX:       buildX,
 		BuildV:       buildV,
 		BuildWork:    buildWork,
-		BuildO:       buildO,
-		BuildA:       buildA,
-		BuildI:       buildI,
 		BuildGcflags: buildGcflags,
 		BuildLdflags: buildLdflags,
-		BuildTarget:  buildTarget,
 	}
 
-	return matcha.Bind(flags, cmd.flag.Args())
+	return matcha.Bind(flags, nil)
 }

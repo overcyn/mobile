@@ -9,7 +9,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -17,7 +16,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"unicode"
 	"unicode/utf8"
 )
@@ -58,10 +56,10 @@ func main() {
 		return
 	}
 
-	if err := determineGoVersion(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", gomobileName, err)
-		os.Exit(1)
-	}
+	// if err := determineGoVersion(); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "%s: %v\n", gomobileName, err)
+	// 	os.Exit(1)
+	// }
 
 	for _, cmd := range commands {
 		if cmd.Name == args[0] {
@@ -84,23 +82,23 @@ func main() {
 	os.Exit(2)
 }
 
-func determineGoVersion() error {
-	gobin, err := exec.LookPath("go")
-	if err != nil {
-		return errors.New("go not found")
-	}
-	goVersionOut, err = exec.Command(gobin, "version").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("'go version' failed: %v, %s", err, goVersionOut)
-	}
-	switch {
-	case bytes.HasPrefix(goVersionOut, []byte("go version go1.4")),
-		bytes.HasPrefix(goVersionOut, []byte("go version go1.5")),
-		bytes.HasPrefix(goVersionOut, []byte("go version go1.6")):
-		return errors.New("Go 1.7 or newer is required")
-	}
-	return nil
-}
+// func determineGoVersion() error {
+// 	gobin, err := exec.LookPath("go")
+// 	if err != nil {
+// 		return errors.New("go not found")
+// 	}
+// 	goVersionOut, err = exec.Command(gobin, "version").CombinedOutput()
+// 	if err != nil {
+// 		return fmt.Errorf("'go version' failed: %v, %s", err, goVersionOut)
+// 	}
+// 	switch {
+// 	case bytes.HasPrefix(goVersionOut, []byte("go version go1.4")),
+// 		bytes.HasPrefix(goVersionOut, []byte("go version go1.5")),
+// 		bytes.HasPrefix(goVersionOut, []byte("go version go1.6")):
+// 		return errors.New("Go 1.7 or newer is required")
+// 	}
+// 	return nil
+// }
 
 func help(args []string) {
 	if len(args) == 0 {

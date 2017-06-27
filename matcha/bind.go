@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 )
 
 func Bind(flags *Flags, args []string) error {
@@ -86,13 +85,14 @@ func Bind(flags *Flags, args []string) error {
 
 	title := "Matcha"
 	genDir := filepath.Join(tempdir, "gen")
-	frameworkDir := flags.BuildO
-	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
-		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
-	}
-	if frameworkDir == "" {
-		frameworkDir = title + ".framework"
-	}
+	frameworkDir := title + ".framework"
+	// frameworkDir := flags.BuildO
+	// if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
+	// 	return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
+	// }
+	// if frameworkDir == "" {
+	// 	frameworkDir = title + ".framework"
+	// }
 
 	// Build the "matcha/bridge" dir
 	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "matchabridge")

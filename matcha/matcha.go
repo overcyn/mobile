@@ -8,22 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
 type Flags struct {
-	BuildN    bool   // print commands but don't run
-	BuildX    bool   // print commands
-	BuildV    bool   // print package names
-	BuildWork bool   // use working directory
-	BuildO    string // output directory
-
-	BuildA       bool   // -a
-	BuildI       bool   // -i
+	BuildN       bool   // print commands but don't run
+	BuildX       bool   // print commands
+	BuildV       bool   // print package names
+	BuildWork    bool   // use working directory
 	BuildGcflags string // -gcflags
 	BuildLdflags string // -ldflags
-	BuildTarget  string // -target
 }
 
 func (f *Flags) ShouldPrint() bool {
@@ -62,12 +56,13 @@ func EnvClang(flags *Flags, sdkName string) (_clang, cflags string, err error) {
 
 	// Get the clang path
 	cmd := exec.Command("xcrun", "--sdk", sdkName, "--find", "clang")
+
 	var clang string
 	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, cmd)
+		PrintCmd(cmd)
 	}
 	if flags.ShouldRun() {
-		out, err := cmd.CombinedOutput()
+		out, err := cmd.Output()
 		if err != nil {
 			return "", "", fmt.Errorf("xcrun --find: %v\n%s", err, out)
 		}
@@ -80,10 +75,10 @@ func EnvClang(flags *Flags, sdkName string) (_clang, cflags string, err error) {
 	cmd = exec.Command("xcrun", "--sdk", sdkName, "--show-sdk-path")
 	var sdk string
 	if flags.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, cmd)
+		PrintCmd(cmd)
 	}
 	if flags.ShouldRun() {
-		out, err := cmd.CombinedOutput()
+		out, err := cmd.Output()
 		if err != nil {
 			return "", "", fmt.Errorf("xcrun --show-sdk-path: %v\n%s", err, out)
 		}
@@ -214,10 +209,10 @@ func GoEnv(name string) string {
 func GoVersion(f *Flags) ([]byte, error) {
 	cmd := exec.Command("go", "version")
 	if f.ShouldPrint() {
-		fmt.Fprintln(os.Stderr, cmd)
+		PrintCmd(cmd)
 	}
 	if f.ShouldRun() {
-		goVer, err := cmd.CombinedOutput()
+		goVer, err := cmd.Output()
 		if err != nil {
 			return nil, fmt.Errorf("'go version' failed: %v, %s", err, goVer)
 		}
@@ -250,9 +245,9 @@ func GoCmd(f *Flags, subcmd string, srcs []string, env []string, ctx build.Conte
 	if f.BuildV {
 		cmd.Args = append(cmd.Args, "-v")
 	}
-	if subcmd != "install" && f.BuildI {
-		cmd.Args = append(cmd.Args, "-i")
-	}
+	// if subcmd != "install" && f.BuildI {
+	// 	cmd.Args = append(cmd.Args, "-i")
+	// }
 	if f.BuildX {
 		cmd.Args = append(cmd.Args, "-x")
 	}

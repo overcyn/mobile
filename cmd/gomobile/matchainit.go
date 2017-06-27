@@ -26,12 +26,8 @@ func runInitMatcha(cmd *command) error {
 		BuildX:       buildX,
 		BuildV:       buildV,
 		BuildWork:    buildWork,
-		BuildO:       buildO,
-		BuildA:       buildA,
-		BuildI:       buildI,
 		BuildGcflags: buildGcflags,
 		BuildLdflags: buildLdflags,
-		BuildTarget:  buildTarget,
 	}
 	return matcha.Init(flags)
 }
