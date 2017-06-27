@@ -1,16 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
-	"go/build"
-	"io"
-	"io/ioutil"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-
 	"golang.org/x/mobile/matcha"
 )
 
@@ -62,68 +52,6 @@ are shared with the build command. For documentation, see 'go help build'.
 }
 
 func runMatcha(cmd *command) error {
-	cleanup, err := buildEnvInit()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	args := cmd.flag.Args()
-
-	targetOS, targetArchs, err := parseBuildTarget(buildTarget)
-	if err != nil {
-		return fmt.Errorf(`invalid -target=%q: %v`, buildTarget, err)
-	}
-
-	ctx.GOARCH = "arm"
-	ctx.GOOS = targetOS
-
-	if ctx.GOOS == "darwin" {
-		ctx.BuildTags = append(ctx.BuildTags, "ios")
-	}
-
-	if bindJavaPkg != "" && ctx.GOOS != "android" {
-		return fmt.Errorf("-javapkg is supported only for android target")
-	}
-	if bindPrefix != "" && ctx.GOOS != "darwin" {
-		return fmt.Errorf("-prefix is supported only for ios target")
-	}
-
-	if ctx.GOOS == "android" && ndkRoot == "" {
-		return errors.New("no Android NDK path is set. Please run gomobile init with the ndk-bundle installed through the Android SDK manager or with the -ndk flag set.")
-	}
-
-	var pkgs []*build.Package
-	switch len(args) {
-	case 0:
-		pkgs = make([]*build.Package, 1)
-		pkgs[0], err = ctx.ImportDir(cwd, build.ImportComment)
-	default:
-		pkgs, err = importPackages(args)
-	}
-	if err != nil {
-		return err
-	}
-
-	// check if any of the package is main
-	for _, pkg := range pkgs {
-		if pkg.Name == "main" {
-			return fmt.Errorf("binding 'main' package (%s) is not supported", pkg.ImportComment)
-		}
-	}
-
-	switch targetOS {
-	case "android":
-		return goAndroidBind(pkgs, targetArchs)
-	case "darwin":
-		// TODO: use targetArchs?
-		return matchaIOSBind(pkgs, cmd)
-	default:
-		return fmt.Errorf(`invalid -target=%q`, buildTarget)
-	}
-}
-
-func matchaIOSBind(pkgs []*build.Package, command *command) error {
 	flags := &matcha.Flags{
 		BuildN:       buildN,
 		BuildX:       buildX,
@@ -137,168 +65,101 @@ func matchaIOSBind(pkgs []*build.Package, command *command) error {
 		BuildTarget:  buildTarget,
 	}
 
-	name := "matcha"
-	title := "Matcha"
-	tempDir := tmpdir
-	genDir := filepath.Join(tempDir, "gen")
-	frameworkDir := flags.BuildO
-	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
-		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
-	}
-	if frameworkDir == "" {
-		frameworkDir = title + ".framework"
-	}
+	return matcha.Bind(flags, cmd.flag.Args())
+	// tempdir, err := matcha.NewBindTmpDir(flags)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer func() {
+	// 	if flags.BuildWork {
+	// 		fmt.Printf("WORK=%s\n", tempdir)
+	// 		return
+	// 	}
+	// 	matcha.RemoveAll(flags, tempdir)
+	// }()
 
-	// Build the "matcha/bridge" dir
-	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "matchabridge")
-	if err := matcha.Mkdir(flags, bridgeDir); err != nil {
-		return err
-	}
+	// if flags.ShouldRun() {
+	// 	_gomobilepath, err := matcha.GoMobilePath()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	goVersion, err := matcha.GoVersion()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	verpath := filepath.Join(_gomobilepath, "version")
+	// 	installedVersion, err := ioutil.ReadFile(verpath)
+	// 	if err != nil {
+	// 		return errors.New("toolchain partially installed, run `gomobile init`")
+	// 	}
+	// 	if !bytes.Equal(installedVersion, goVersion) {
+	// 		return errors.New("toolchain out of date, run `gomobile init`")
+	// 	}
+	// }
 
-	// Create the "main" go package, that references the other go packages
-	mainPath := filepath.Join(tempDir, "src", "iosbin", "main.go")
-	err := matcha.WriteFile(flags, mainPath, func(w io.Writer) error {
-		blah := command.flag.Args()[0]
-		format := fmt.Sprintf(string(iosBindFile), blah)
-		_, err := w.Write([]byte(format))
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create the binding package for iOS: %v", err)
-	}
+	// workingdir, err := os.Getwd()
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Get the supporting files
-	objcPkg, err := ctx.Import("golang.org/x/mobile/bind/objc", "", build.FindOnly)
-	if err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.h"), filepath.Join(objcPkg.Dir, "matchaobjc.h.support")); err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.m"), filepath.Join(objcPkg.Dir, "matchaobjc.m.support")); err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.go"), filepath.Join(objcPkg.Dir, "matchaobjc.go.support")); err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.h"), filepath.Join(objcPkg.Dir, "matchago.h.support")); err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.m"), filepath.Join(objcPkg.Dir, "matchago.m.support")); err != nil {
-		return err
-	}
-	if err := matcha.CopyFile(flags, filepath.Join(bridgeDir, "matchago.go"), filepath.Join(objcPkg.Dir, "matchago.go.support")); err != nil {
-		return err
-	}
+	// // cleanup, err := buildEnvInit()
+	// // if err != nil {
+	// // 	return err
+	// // }
+	// // defer cleanup()
 
-	// Build static framework output directory.
-	if err := matcha.RemoveAll(flags, frameworkDir); err != nil {
-		return err
-	}
+	// args := cmd.flag.Args()
 
-	// Build framework directory structure.
-	headersDir := filepath.Join(frameworkDir, "Versions", "A", "Headers")
-	resourcesDir := filepath.Join(frameworkDir, "Versions", "A", "Resources")
-	modulesDir := filepath.Join(frameworkDir, "Versions", "A", "Modules")
-	binaryPath := filepath.Join(frameworkDir, "Versions", "A", title)
-	if err := matcha.Mkdir(flags, headersDir); err != nil {
-		return err
-	}
-	if err := matcha.Mkdir(flags, resourcesDir); err != nil {
-		return err
-	}
-	if err := matcha.Mkdir(flags, modulesDir); err != nil {
-		return err
-	}
-	if err := matcha.Symlink(flags, "A", filepath.Join(frameworkDir, "Versions", "Current")); err != nil {
-		return err
-	}
-	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Headers"), filepath.Join(frameworkDir, "Headers")); err != nil {
-		return err
-	}
-	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Resources"), filepath.Join(frameworkDir, "Resources")); err != nil {
-		return err
-	}
-	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", "Modules"), filepath.Join(frameworkDir, "Modules")); err != nil {
-		return err
-	}
-	if err := matcha.Symlink(flags, filepath.Join("Versions", "Current", title), filepath.Join(frameworkDir, title)); err != nil {
-		return err
-	}
+	// targetOS, targetArchs, err := matcha.ParseBuildTarget(flags.BuildTarget)
+	// if err != nil {
+	// 	return fmt.Errorf(`invalid -target=%q: %v`, flags.BuildTarget, err)
+	// }
 
-	// Copy in headers.
-	if err = matcha.CopyFile(flags, filepath.Join(headersDir, "matchaobjc.h"), filepath.Join(bridgeDir, "matchaobjc.h")); err != nil {
-		return err
-	}
-	if err = matcha.CopyFile(flags, filepath.Join(headersDir, "matchago.h"), filepath.Join(bridgeDir, "matchago.h")); err != nil {
-		return err
-	}
+	// _ctx := build.Default
+	// _ctx.GOARCH = "arm"
+	// _ctx.GOOS = targetOS
 
-	// Copy in resources.
-	if err := ioutil.WriteFile(filepath.Join(resourcesDir, "Info.plist"), []byte(iosBindInfoPlist), 0666); err != nil {
-		return err
-	}
+	// if _ctx.GOOS == "darwin" {
+	// 	_ctx.BuildTags = append(_ctx.BuildTags, "ios")
+	// }
 
-	// Write modulemap.
-	var mmVals = struct {
-		Module  string
-		Headers []string
-	}{
-		Module:  title,
-		Headers: []string{"matchaobjc.h", "matchago.h"},
-	}
-	err = matcha.WriteFile(flags, filepath.Join(modulesDir, "module.modulemap"), func(w io.Writer) error {
-		return iosModuleMapTmpl.Execute(w, mmVals)
-	})
-	if err != nil {
-		return err
-	}
+	// // if bindJavaPkg != "" && _ctx.GOOS != "android" {
+	// // 	return fmt.Errorf("-javapkg is supported only for android target")
+	// // }
+	// // if bindPrefix != "" && _ctx.GOOS != "darwin" {
+	// // 	return fmt.Errorf("-prefix is supported only for ios target")
+	// // }
 
-	// Build platform binaries concurrently.
-	matchaDarwinArmEnv, err := matcha.DarwinArmEnv(flags)
-	if err != nil {
-		return err
-	}
+	// // if _ctx.GOOS == "android" && ndkRoot == "" {
+	// // 	return errors.New("no Android NDK path is set. Please run gomobile init with the ndk-bundle installed through the Android SDK manager or with the -ndk flag set.")
+	// // }
 
-	matchaDarwinArm64Env, err := matcha.DarwinArm64Env(flags)
-	if err != nil {
-		return err
-	}
+	// var pkgs []*build.Package
+	// switch len(args) {
+	// case 0:
+	// 	pkgs = make([]*build.Package, 1)
+	// 	pkgs[0], err = _ctx.ImportDir(workingdir, build.ImportComment)
+	// default:
+	// 	pkgs, err = matcha.ImportPackages(args, _ctx, workingdir)
+	// }
+	// if err != nil {
+	// 	return err
+	// }
 
-	matchaDarwinAmd64Env, err := matcha.DarwinAmd64Env(flags)
-	if err != nil {
-		return err
-	}
+	// // check if any of the package is main
+	// for _, pkg := range pkgs {
+	// 	if pkg.Name == "main" {
+	// 		return fmt.Errorf("binding 'main' package (%s) is not supported", pkg.ImportComment)
+	// 	}
+	// }
 
-	type archPath struct {
-		arch string
-		path string
-		err  error
-	}
-	archChan := make(chan archPath)
-	for _, i := range [][]string{matchaDarwinArmEnv, matchaDarwinArm64Env, matchaDarwinAmd64Env} {
-		go func(env []string) {
-			arch := getenv(env, "GOARCH")
-			env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
-			path := filepath.Join(tempDir, name+"-"+arch+".a")
-			err := matcha.GoBuild(flags, mainPath, env, ctx, tmpdir, "-buildmode=c-archive", "-o", path)
-			archChan <- archPath{arch, path, err}
-		}(i)
-	}
-	archs := []archPath{}
-	for i := 0; i < 3; i++ {
-		arch := <-archChan
-		if arch.err != nil {
-			return arch.err
-		}
-		archs = append(archs, arch)
-	}
-
-	// Lipo to build fat binary.
-	cmd := exec.Command("xcrun", "lipo", "-create")
-	for _, i := range archs {
-		cmd.Args = append(cmd.Args, "-arch", matcha.ArchClang(i.arch), i.path)
-	}
-	cmd.Args = append(cmd.Args, "-o", binaryPath)
-	return matcha.RunCmd(flags, tempDir, cmd)
+	// switch targetOS {
+	// case "android":
+	// 	return goAndroidBind(pkgs, targetArchs)
+	// case "darwin":
+	// 	// TODO: use targetArchs?
+	// 	return matcha.IOSBind(flags, pkgs, args[0], tempdir, _ctx)
+	// default:
+	// 	return fmt.Errorf(`invalid -target=%q`, buildTarget)
+	// }
 }

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"go/build"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -43,6 +45,22 @@ func NewTmpDir(f *Flags) (string, error) {
 	// 	removeAll(tmpdir)
 	// }()
 	return tmpdir, err
+}
+
+func NewBindTmpDir(f *Flags) (string, error) {
+	tmpdir := "$WORK"
+	if f.ShouldRun() {
+		var err error
+		tmpdir, err = ioutil.TempDir("", "gomobile-work-")
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if f.ShouldPrint() {
+		fmt.Fprintln(os.Stderr, "WORK="+tmpdir)
+	}
+	return tmpdir, nil
 }
 
 func XcodeAvailable() bool {
@@ -681,4 +699,398 @@ func GoCmd(f *Flags, subcmd string, srcs []string, env []string, ctx build.Conte
 	cmd.Args = append(cmd.Args, srcs...)
 	cmd.Env = append([]string{}, env...)
 	return RunCmd(f, tmpdir, cmd)
+}
+
+var iosModuleMapTmpl = template.Must(template.New("iosmmap").Parse(`framework module "{{.Module}}" {
+    // header "ref.h"
+{{range .Headers}}    header "{{.}}"
+{{end}}
+    export *
+}`))
+
+func WriteModuleMap(flags *Flags, filename string, title string) error {
+	// Write modulemap.
+	var mmVals = struct {
+		Module  string
+		Headers []string
+	}{
+		Module:  title,
+		Headers: []string{"matchaobjc.h", "matchago.h"},
+	}
+	err := WriteFile(flags, filename, func(w io.Writer) error {
+		return iosModuleMapTmpl.Execute(w, mmVals)
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+const IosBindInfoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+      <dict>
+      </dict>
+    </plist>
+`
+
+func IOSBind(flags *Flags, pkgs []*build.Package, firstArg string, tempDir string, ctx build.Context) error {
+	name := "matcha"
+	title := "Matcha"
+	genDir := filepath.Join(tempDir, "gen")
+	frameworkDir := flags.BuildO
+	if frameworkDir != "" && !strings.HasSuffix(frameworkDir, ".framework") {
+		return fmt.Errorf("static framework name %q missing .framework suffix", frameworkDir)
+	}
+	if frameworkDir == "" {
+		frameworkDir = title + ".framework"
+	}
+
+	// Build the "matcha/bridge" dir
+	bridgeDir := filepath.Join(genDir, "src", "github.com", "overcyn", "matchabridge")
+	if err := Mkdir(flags, bridgeDir); err != nil {
+		return err
+	}
+
+	// Create the "main" go package, that references the other go packages
+	mainPath := filepath.Join(tempDir, "src", "iosbin", "main.go")
+	err := WriteFile(flags, mainPath, func(w io.Writer) error {
+		format := fmt.Sprintf(string(iosBindFile), firstArg)
+		_, err := w.Write([]byte(format))
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create the binding package for iOS: %v", err)
+	}
+
+	// Get the supporting files
+	objcPkg, err := ctx.Import("golang.org/x/mobile/bind/objc", "", build.FindOnly)
+	if err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.h"), filepath.Join(objcPkg.Dir, "matchaobjc.h.support")); err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.m"), filepath.Join(objcPkg.Dir, "matchaobjc.m.support")); err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchaobjc.go"), filepath.Join(objcPkg.Dir, "matchaobjc.go.support")); err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchago.h"), filepath.Join(objcPkg.Dir, "matchago.h.support")); err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchago.m"), filepath.Join(objcPkg.Dir, "matchago.m.support")); err != nil {
+		return err
+	}
+	if err := CopyFile(flags, filepath.Join(bridgeDir, "matchago.go"), filepath.Join(objcPkg.Dir, "matchago.go.support")); err != nil {
+		return err
+	}
+
+	// Build static framework output directory.
+	if err := RemoveAll(flags, frameworkDir); err != nil {
+		return err
+	}
+
+	// Build framework directory structure.
+	headersDir := filepath.Join(frameworkDir, "Versions", "A", "Headers")
+	resourcesDir := filepath.Join(frameworkDir, "Versions", "A", "Resources")
+	modulesDir := filepath.Join(frameworkDir, "Versions", "A", "Modules")
+	binaryPath := filepath.Join(frameworkDir, "Versions", "A", title)
+	if err := Mkdir(flags, headersDir); err != nil {
+		return err
+	}
+	if err := Mkdir(flags, resourcesDir); err != nil {
+		return err
+	}
+	if err := Mkdir(flags, modulesDir); err != nil {
+		return err
+	}
+	if err := Symlink(flags, "A", filepath.Join(frameworkDir, "Versions", "Current")); err != nil {
+		return err
+	}
+	if err := Symlink(flags, filepath.Join("Versions", "Current", "Headers"), filepath.Join(frameworkDir, "Headers")); err != nil {
+		return err
+	}
+	if err := Symlink(flags, filepath.Join("Versions", "Current", "Resources"), filepath.Join(frameworkDir, "Resources")); err != nil {
+		return err
+	}
+	if err := Symlink(flags, filepath.Join("Versions", "Current", "Modules"), filepath.Join(frameworkDir, "Modules")); err != nil {
+		return err
+	}
+	if err := Symlink(flags, filepath.Join("Versions", "Current", title), filepath.Join(frameworkDir, title)); err != nil {
+		return err
+	}
+
+	// Copy in headers.
+	if err = CopyFile(flags, filepath.Join(headersDir, "matchaobjc.h"), filepath.Join(bridgeDir, "matchaobjc.h")); err != nil {
+		return err
+	}
+	if err = CopyFile(flags, filepath.Join(headersDir, "matchago.h"), filepath.Join(bridgeDir, "matchago.h")); err != nil {
+		return err
+	}
+
+	// Copy in resources.
+	if err := ioutil.WriteFile(filepath.Join(resourcesDir, "Info.plist"), []byte(IosBindInfoPlist), 0666); err != nil {
+		return err
+	}
+
+	// Write modulemap.
+	err = WriteModuleMap(flags, filepath.Join(modulesDir, "module.modulemap"), title)
+	if err != nil {
+		return err
+	}
+
+	// Build platform binaries concurrently.
+	matchaDarwinArmEnv, err := DarwinArmEnv(flags)
+	if err != nil {
+		return err
+	}
+
+	matchaDarwinArm64Env, err := DarwinArm64Env(flags)
+	if err != nil {
+		return err
+	}
+
+	matchaDarwinAmd64Env, err := DarwinAmd64Env(flags)
+	if err != nil {
+		return err
+	}
+
+	type archPath struct {
+		arch string
+		path string
+		err  error
+	}
+	archChan := make(chan archPath)
+	for _, i := range [][]string{matchaDarwinArmEnv, matchaDarwinArm64Env, matchaDarwinAmd64Env} {
+		go func(env []string) {
+			arch := Getenv(env, "GOARCH")
+			env = append(env, "GOPATH="+genDir+string(filepath.ListSeparator)+os.Getenv("GOPATH"))
+			path := filepath.Join(tempDir, name+"-"+arch+".a")
+			err := GoBuild(flags, mainPath, env, ctx, tempDir, "-buildmode=c-archive", "-o", path)
+			archChan <- archPath{arch, path, err}
+		}(i)
+	}
+	archs := []archPath{}
+	for i := 0; i < 3; i++ {
+		arch := <-archChan
+		if arch.err != nil {
+			return arch.err
+		}
+		archs = append(archs, arch)
+	}
+
+	// Lipo to build fat binary.
+	cmd := exec.Command("xcrun", "lipo", "-create")
+	for _, i := range archs {
+		cmd.Args = append(cmd.Args, "-arch", ArchClang(i.arch), i.path)
+	}
+	cmd.Args = append(cmd.Args, "-o", binaryPath)
+	return RunCmd(flags, tempDir, cmd)
+}
+
+func ImportPackages(args []string, ctx build.Context, cwd string) ([]*build.Package, error) {
+	pkgs := make([]*build.Package, len(args))
+	for i, a := range args {
+		a = path.Clean(a)
+		var err error
+		if pkgs[i], err = ctx.Import(a, cwd, build.ImportComment); err != nil {
+			return nil, fmt.Errorf("package %q: %v", a, err)
+		}
+	}
+	return pkgs, nil
+}
+
+func ParseBuildTarget(buildTarget string) (os string, archs []string, _ error) {
+	if buildTarget == "" {
+		return "", nil, fmt.Errorf(`invalid target ""`)
+	}
+
+	all := false
+	archNames := []string{}
+	for i, p := range strings.Split(buildTarget, ",") {
+		osarch := strings.SplitN(p, "/", 2) // len(osarch) > 0
+		if osarch[0] != "android" && osarch[0] != "ios" {
+			return "", nil, fmt.Errorf(`unsupported os`)
+		}
+
+		if i == 0 {
+			os = osarch[0]
+		}
+
+		if os != osarch[0] {
+			return "", nil, fmt.Errorf(`cannot target different OSes`)
+		}
+
+		if len(osarch) == 1 {
+			all = true
+		} else {
+			archNames = append(archNames, osarch[1])
+		}
+	}
+
+	// verify all archs are supported one while deduping.
+	var supported []string
+	switch os {
+	case "ios":
+		supported = []string{"arm", "arm64", "amd64"}
+	case "android":
+		supported = []string{"arm", "arm64", "386", "amd64"}
+	}
+
+	isSupported := func(arch string) bool {
+		for _, a := range supported {
+			if a == arch {
+				return true
+			}
+		}
+		return false
+	}
+
+	seen := map[string]bool{}
+	for _, arch := range archNames {
+		if _, ok := seen[arch]; ok {
+			continue
+		}
+		if !isSupported(arch) {
+			return "", nil, fmt.Errorf(`unsupported arch: %q`, arch)
+		}
+
+		seen[arch] = true
+		archs = append(archs, arch)
+	}
+
+	targetOS := os
+	if os == "ios" {
+		targetOS = "darwin"
+	}
+	if all {
+		return targetOS, supported, nil
+	}
+	return targetOS, archs, nil
+}
+
+var iosBindFile = []byte(`
+package main
+
+import (
+    _ "github.com/overcyn/matchabridge"
+    _ "%s"
+)
+
+import "C"
+
+func main() {}
+`)
+
+var iosBindHeaderTmpl = template.Must(template.New("ios.h").Parse(`
+// Objective-C API for talking to the following Go packages
+//
+{{range .pkgs}}//   {{.ImportPath}}
+{{end}}//
+// File is generated by gomobile bind. Do not edit.
+#ifndef __{{.title}}_FRAMEWORK_H__
+#define __{{.title}}_FRAMEWORK_H__
+
+{{range .bases}}#include "{{.}}.objc.h"
+{{end}}
+#endif
+`))
+
+func Bind(flags *Flags, args []string) error {
+	tempdir, err := NewBindTmpDir(flags)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if flags.BuildWork {
+			fmt.Printf("WORK=%s\n", tempdir)
+			return
+		}
+		RemoveAll(flags, tempdir)
+	}()
+
+	if flags.ShouldRun() {
+		_gomobilepath, err := GoMobilePath()
+		if err != nil {
+			return err
+		}
+		goVersion, err := GoVersion()
+		if err != nil {
+			return err
+		}
+		verpath := filepath.Join(_gomobilepath, "version")
+		installedVersion, err := ioutil.ReadFile(verpath)
+		if err != nil {
+			return errors.New("toolchain partially installed, run `gomobile init`")
+		}
+		if !bytes.Equal(installedVersion, goVersion) {
+			return errors.New("toolchain out of date, run `gomobile init`")
+		}
+	}
+
+	workingdir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	// cleanup, err := buildEnvInit()
+	// if err != nil {
+	//  return err
+	// }
+	// defer cleanup()
+
+	targetOS, _, err := ParseBuildTarget(flags.BuildTarget)
+	if err != nil {
+		return fmt.Errorf(`invalid -target=%q: %v`, flags.BuildTarget, err)
+	}
+
+	_ctx := build.Default
+	_ctx.GOARCH = "arm"
+	_ctx.GOOS = targetOS
+
+	if _ctx.GOOS == "darwin" {
+		_ctx.BuildTags = append(_ctx.BuildTags, "ios")
+	}
+
+	// if bindJavaPkg != "" && _ctx.GOOS != "android" {
+	//  return fmt.Errorf("-javapkg is supported only for android target")
+	// }
+	// if bindPrefix != "" && _ctx.GOOS != "darwin" {
+	//  return fmt.Errorf("-prefix is supported only for ios target")
+	// }
+
+	// if _ctx.GOOS == "android" && ndkRoot == "" {
+	//  return errors.New("no Android NDK path is set. Please run gomobile init with the ndk-bundle installed through the Android SDK manager or with the -ndk flag set.")
+	// }
+
+	var pkgs []*build.Package
+	switch len(args) {
+	case 0:
+		pkgs = make([]*build.Package, 1)
+		pkgs[0], err = _ctx.ImportDir(workingdir, build.ImportComment)
+	default:
+		pkgs, err = ImportPackages(args, _ctx, workingdir)
+	}
+	if err != nil {
+		return err
+	}
+
+	// check if any of the package is main
+	for _, pkg := range pkgs {
+		if pkg.Name == "main" {
+			return fmt.Errorf("binding 'main' package (%s) is not supported", pkg.ImportComment)
+		}
+	}
+
+	switch targetOS {
+	case "android":
+		return errors.New("Android unsupporetd")
+	case "darwin":
+		// TODO: use targetArchs?
+		return IOSBind(flags, pkgs, args[0], tempdir, _ctx)
+	default:
+		return fmt.Errorf(`invalid -target=%q`, flags.BuildTarget)
+	}
 }
